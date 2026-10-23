@@ -32,6 +32,9 @@ public sealed class Settings
     public int Interval { get; set; } = 1000;
     /// null = never chosen: autostart gets switched on the first time we run elevated.
     public bool? Autostart { get; set; }
+    public string Language { get; set; } = "en";
+    /// The start-up card on the panel.
+    public bool Intro { get; set; } = true;
 
     static string FilePath => Path.Combine(App.DataDir, "settings.json");
 
@@ -39,7 +42,14 @@ public sealed class Settings
     {
         firstRun = !File.Exists(FilePath);
         if (firstRun) return new Settings();
-        try { return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), Ember.Theme.Json) ?? new Settings(); }
+        try
+        {
+            var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), Ember.Theme.Json) ?? new Settings();
+            if (!L.Languages.Contains(s.Language)) s.Language = "en";
+            // Built-in themes that were renamed in 1.0.
+            s.Theme = s.Theme switch { "rdzenie" => "cores", "zegar" => "clock", _ => s.Theme };
+            return s;
+        }
         catch (Exception e)
         {
             Log.Error("settings", e);
@@ -50,6 +60,7 @@ public sealed class Settings
 
     public void Save()
     {
+        if (App.Shots) return; // the UI test changes settings; the person's own must survive it
         try { App.WriteAtomic(FilePath, JsonSerializer.Serialize(this, Ember.Theme.Json)); }
         catch (Exception e) { Log.Error("settings save", e); }
     }
@@ -270,6 +281,7 @@ public static class App
     static DispatcherTimer? saveTimer;
     static int shuttingDown;
     static string? shotDir;
+    public static bool Shots => shotDir != null;
 
     [STAThread]
     public static int Main(string[] args)
@@ -279,12 +291,18 @@ public static class App
         TaskScheduler.UnobservedTaskException += (_, e) => { Log.Error("task", e.Exception); e.SetObserved(); };
 
         int ai = Array.IndexOf(args, "--render");
-        if (ai >= 0) return SelfTest.Render(args.ElementAtOrDefault(ai + 1) ?? ".");
+        if (ai >= 0)
+        {
+            if (args.Contains("pl")) L.Lang = "pl";
+            return SelfTest.Render(args.ElementAtOrDefault(ai + 1) ?? ".");
+        }
         if (args.Contains("--selftest")) return SelfTest.Run();
         ai = Array.IndexOf(args, "--make-icon");
         if (ai >= 0) { Icons.WriteIco(args.ElementAtOrDefault(ai + 1) ?? "app.ico"); return 0; }
 
+        if (args.Contains("--install-pawnio")) return Sensors.PawnIoVersion != null || PawnIo.Install().GetAwaiter().GetResult() == PawnIo.Result.Installed ? 0 : 1;
         if (args.Contains("--quit")) return Host.QuitRunning() ? 0 : 1;
+        if (args.Contains("--demo")) Sensors.Demo = true;
         if (args.Contains("--after-restart")) Host.WaitGone();
         if (Host.SignalRunning()) return 0;
 
@@ -310,17 +328,21 @@ public static class App
 
         ai = Array.IndexOf(args, "--screenshots");
         shotDir = ai >= 0 ? args.ElementAtOrDefault(ai + 1) : null;
-        Run(startHidden: args.Contains("--autostart"));
+        // The installer passes the language its wizard ran in, so the first start matches it.
+        ai = Array.IndexOf(args, "--language");
+        Run(startHidden: args.Contains("--autostart"), firstLanguage: ai >= 0 ? args.ElementAtOrDefault(ai + 1) : null);
         GC.KeepAlive(mutex);
         return 0;
     }
 
-    static void Run(bool startHidden)
+    static void Run(bool startHidden, string? firstLanguage)
     {
         Log.Info($"start {Environment.ProcessPath} elevated={Sensors.Elevated} pawnio={Sensors.PawnIoVersion?.ToString() ?? "none"}");
         Cfg = Settings.Load(out bool firstRun);
+        if (firstRun && firstLanguage != null && L.Languages.Contains(firstLanguage)) Cfg.Language = firstLanguage;
+        L.Lang = Cfg.Language;
         AllThemes = Themes.LoadAll();
-        var theme = AllThemes.FirstOrDefault(t => t.Id == Cfg.Theme) ?? AllThemes[0];
+        var theme = (Shots ? null : AllThemes.FirstOrDefault(t => t.Id == Cfg.Theme)) ?? AllThemes[0];
         Sensors = new Sensors(Cfg);
         Sensors.Start();
         Engine = new Engine(Cfg, Sensors, theme);
@@ -342,7 +364,10 @@ public static class App
         ShutdownNow();
     }
 
-    public static void ShowWindow()
+    public const string RepoUrl = "https://github.com/cybvlsky/Ember";
+    public static string Version => typeof(App).Assembly.GetName().Version!.ToString(3);
+
+    public static void ShowWindow(string? page = null)
     {
         if (Wpf == null) return;
         Wpf.Dispatcher.BeginInvoke(() =>
@@ -366,11 +391,26 @@ public static class App
                 window.Show();
             }
             if (window.WindowState == System.Windows.WindowState.Minimized) window.WindowState = System.Windows.WindowState.Normal;
+            if (page != null) window.GoTo(page);
             window.Activate();
             window.Topmost = true;
             window.Topmost = false;
         });
     }
+
+    /// Switches the UI and the built-in theme texts to Cfg.Language: the window is rebuilt and the panel redrawn.
+    public static void ApplyLanguage()
+    {
+        L.Lang = Cfg.Language;
+        Engine.Theme = Engine.Theme.Clone();
+        if (window is { } w)
+        {
+            w.Closed += (_, _) => Wpf.Dispatcher.BeginInvoke(() => ShowWindow("settings"));
+            w.Close();
+        }
+    }
+
+    public static void OpenUrl(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 
     public static void SetTheme(Theme t)
     {
@@ -423,7 +463,7 @@ static class Tray
     public static NotifyIcon Create()
     {
         var ni = new NotifyIcon { Icon = Icons.Tray(), Text = "Ember", Visible = true };
-        var menu = new ContextMenuStrip { Renderer = new DarkRenderer(), ShowImageMargin = false, ShowCheckMargin = true, Font = new Font("Segoe UI Variable Text", 9.5f) };
+        var menu = new ContextMenuStrip { Renderer = new DarkRenderer(), ShowImageMargin = false, ShowCheckMargin = true, Font = new Font("Bahnschrift", 10f) };
         menu.Opening += (_, _) => Fill(menu);
         Fill(menu);
         ni.ContextMenuStrip = menu;
@@ -433,7 +473,7 @@ static class Tray
         {
             var s = App.Sensors.Current;
             string Num(string k, string u) => double.IsNaN(s.Get(k)) ? "--" : s.Get(k).ToString("0") + u;
-            var text = $"Ember · {(App.Engine.Connected ? "ekran działa" : "brak ekranu")}\nCPU {Num("cpu.load", "%")} {Num("cpu.temp", "°C")} · GPU {Num("gpu.load", "%")} {Num("gpu.temp", "°C")}";
+            var text = $"Ember: {(App.Engine.Connected ? L.T("screen connected") : L.T("no screen"))}\nCPU {Num("cpu.load", "%")} {Num("cpu.temp", "°C")}   GPU {Num("gpu.load", "%")} {Num("gpu.temp", "°C")}";
             ni.Text = text.Length > 127 ? text[..127] : text;
         };
         t.Start();
@@ -443,25 +483,25 @@ static class Tray
     static void Fill(ContextMenuStrip menu)
     {
         menu.Items.Clear();
-        var open = new ToolStripMenuItem("Otwórz Ember", null, (_, _) => App.ShowWindow()) { Font = new Font(menu.Font, System.Drawing.FontStyle.Bold) };
+        var open = new ToolStripMenuItem(L.T("Open Ember"), null, (_, _) => App.ShowWindow()) { Font = new Font(menu.Font, System.Drawing.FontStyle.Bold) };
         menu.Items.Add(open);
         menu.Items.Add(new ToolStripSeparator());
-        var themes = new ToolStripMenuItem("Motyw");
+        var themes = new ToolStripMenuItem(L.T("Theme"));
         foreach (var th in App.AllThemes)
         {
             var t = th;
-            themes.DropDownItems.Add(new ToolStripMenuItem(t.Name, null, (_, _) => App.SetTheme(t)) { Checked = App.Engine.Theme.Id == t.Id });
+            themes.DropDownItems.Add(new ToolStripMenuItem(L.T(t.Name), null, (_, _) => App.SetTheme(t)) { Checked = App.Engine.Theme.Id == t.Id });
         }
         Style(themes);
         menu.Items.Add(themes);
-        var bright = new ToolStripMenuItem("Jasność");
+        var bright = new ToolStripMenuItem(L.T("Brightness"));
         foreach (var v in new[] { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 })
-            bright.DropDownItems.Add(new ToolStripMenuItem($"{v} %", null, (_, _) => { App.Cfg.Brightness = v; App.Cfg.Save(); App.Engine.Poke(); }) { Checked = App.Cfg.Brightness == v });
+            bright.DropDownItems.Add(new ToolStripMenuItem($"{v}%", null, (_, _) => { App.Cfg.Brightness = v; App.Cfg.Save(); App.Engine.Poke(); }) { Checked = App.Cfg.Brightness == v });
         Style(bright);
         menu.Items.Add(bright);
-        menu.Items.Add(new ToolStripMenuItem("Wygaś ekran", null, (_, _) => App.Engine.Blank = !App.Engine.Blank) { Checked = App.Engine.Blank });
+        menu.Items.Add(new ToolStripMenuItem(L.T("Turn the screen off"), null, (_, _) => App.Engine.Blank = !App.Engine.Blank) { Checked = App.Engine.Blank });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("Zakończ", null, (_, _) => App.Quit()));
+        menu.Items.Add(new ToolStripMenuItem(L.T("Quit"), null, (_, _) => App.Quit()));
     }
 
     static void Style(ToolStripMenuItem item)
@@ -471,7 +511,7 @@ static class Tray
 
     sealed class DarkRenderer : ToolStripProfessionalRenderer
     {
-        static readonly Color Text = Color.FromArgb(0xE8, 0xEC, 0xF2), Dim = Color.FromArgb(0x5E, 0x69, 0x7C), Accent = Color.FromArgb(0xFF, 0x9A, 0x3D);
+        static readonly Color Text = Color.FromArgb(0xEE, 0xE8, 0xE2), Dim = Color.FromArgb(0x75, 0x6D, 0x66), Accent = Color.FromArgb(0xFF, 0x6A, 0x1F);
 
         public DarkRenderer() : base(new Colors()) => RoundedEdges = false;
 
@@ -483,7 +523,7 @@ static class Tray
 
         protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
         {
-            e.ArrowColor = Color.FromArgb(0x8A, 0x94, 0xA6);
+            e.ArrowColor = Color.FromArgb(0xA6, 0x9D, 0x94);
             base.OnRenderArrow(e);
         }
 
@@ -498,7 +538,7 @@ static class Tray
 
         sealed class Colors : ProfessionalColorTable
         {
-            static readonly Color Bg = Color.FromArgb(0x12, 0x18, 0x21), Hover = Color.FromArgb(0x1F, 0x27, 0x33), Line = Color.FromArgb(0x27, 0x30, 0x3F);
+            static readonly Color Bg = Color.FromArgb(0x2A, 0x27, 0x25), Hover = Color.FromArgb(0x3A, 0x36, 0x33), Line = Color.FromArgb(0x3A, 0x36, 0x33);
             public override Color ToolStripDropDownBackground => Bg;
             public override Color ImageMarginGradientBegin => Bg;
             public override Color ImageMarginGradientMiddle => Bg;
@@ -519,49 +559,115 @@ static class Tray
     }
 }
 
-/// The ember logo, drawn with Skia so the tray icon, the window and the exe icon all match.
+/// The ember mark, a coal with glowing cracks. Drawn with Skia so the tray, the window, the exe icon and the panel match.
 public static class Icons
 {
-    static SKPath Flame(float s, bool inner)
+    static SKColor C(uint rgb) => new((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
+
+    static SKPath Poly(float s, bool close, params float[] xy)
     {
-        var p = inner
-            ? SKPath.ParseSvgPathData("M52 47 C58 57 68 64 68 76 C68 87 60 93 51 93 C42 93 34 87 34 77 C34 68 40 62 45 57 C45 66 48 70 51 71 C49 62 50 54 52 47 Z")
-            : SKPath.ParseSvgPathData("M51 5 C63 25 85 38 85 62 C85 82 69 95 50 95 C31 95 15 82 15 62 C15 48 23 37 32 29 C32 43 38 52 44 54 C40 36 44 19 51 5 Z");
-        p.Transform(SKMatrix.CreateScale(s / 100, s / 100));
+        var p = new SKPath();
+        p.MoveTo(xy[0] * s / 100, xy[1] * s / 100);
+        for (int i = 2; i < xy.Length; i += 2) p.LineTo(xy[i] * s / 100, xy[i + 1] * s / 100);
+        if (close) p.Close();
         return p;
     }
 
-    public static SKBitmap Logo(int size, bool tile)
+    /// `glow` adds the soft halo; leave it off where the background is unknown (the exe icon).
+    public static SKBitmap Logo(int size, bool glow = false)
     {
         var bmp = new SKBitmap(size, size, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var c = new SKCanvas(bmp);
         c.Clear(SKColors.Transparent);
-        float s = size;
-        if (tile)
+        Draw(c, size, glow);
+        return bmp;
+    }
+
+    /// Up to 32 px the hairline, bevel and bloom would be mush, so small sizes get fat seams and a lighter crust.
+    public static void Draw(SKCanvas c, float s, bool glow)
+    {
+        bool small = s <= 32;
+        using var raw = Poly(s, true, 22, 16, 58, 7, 88, 22, 93, 58, 74, 88, 34, 93, 9, 70, 8, 36);
+        using var corner = SKPathEffect.CreateCorner(s * (small ? .12f : .08f));
+        using var rounder = new SKPaint { PathEffect = corner };
+        using var stone = new SKPath();
+        rounder.GetFillPath(raw, stone);
+        using var cracks = Poly(s, false, 2, 53, 21, 49, 38, 57, 61, 41, 98, 46);
+        using (var branch = Poly(s, false, 38, 57, 43, 76, 51, 98)) cracks.AddPath(branch);
+        float sw = s * (small ? .13f : .055f);
+        using var seamPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw, StrokeJoin = SKStrokeJoin.Miter };
+        using var seam = new SKPath();
+        seamPaint.GetFillPath(cracks, seam);
+
+        if (glow)
         {
-            using var bg = new SKPaint { IsAntialias = true };
-            bg.Shader = SKShader.CreateRadialGradient(new SKPoint(s * 0.7f, s * 0.15f), s * 1.0f, [new SKColor(0x3A, 0x22, 0x10), new SKColor(0x0E, 0x11, 0x17)], null, SKShaderTileMode.Clamp);
-            c.DrawRoundRect(new SKRect(0, 0, s, s), s * 0.22f, s * 0.22f, bg);
-            c.Translate(s * 0.14f, s * 0.12f);
-            c.Scale(0.72f);
+            using var halo = new SKPaint { IsAntialias = true, Color = C(0xFF5A1F).WithAlpha(90), MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .07f) };
+            c.DrawPath(stone, halo);
         }
-        using var outer = Flame(s, false);
-        using var inner = Flame(s, true);
-        using var op = new SKPaint { IsAntialias = true };
-        op.Shader = SKShader.CreateLinearGradient(new SKPoint(0, s * 0.05f), new SKPoint(0, s * 0.95f),
-            [new SKColor(0xFF, 0xD2, 0x5A), new SKColor(0xFF, 0x8A, 0x3D), new SKColor(0xF0, 0x4E, 0x2C)], [0, 0.55f, 1], SKShaderTileMode.Clamp);
-        c.DrawPath(outer, op);
-        using var ip = new SKPaint { IsAntialias = true };
-        ip.Shader = SKShader.CreateLinearGradient(new SKPoint(0, s * 0.47f), new SKPoint(0, s * 0.93f),
-            [new SKColor(0xFF, 0xF3, 0xC4), new SKColor(0xFF, 0xC5, 0x3D)], null, SKShaderTileMode.Clamp);
-        c.DrawPath(inner, ip);
+        c.Save();
+        c.ClipPath(stone, antialias: true);
+        // The hot inside shows through the seams; the crust plates sit on top of it.
+        using var hot = new SKPaint { IsAntialias = true, Shader = SKShader.CreateRadialGradient(new SKPoint(s * .42f, s * .58f), s * .55f,
+            new[] { C(0xFFF4CF), C(0xFFC23A), C(0xFF6A1F), C(0xC9300F) }, new[] { 0, .22f, .55f, 1 }, SKShaderTileMode.Clamp) };
+        c.DrawRect(0, 0, s, s, hot);
+        using var plates = stone.Op(seam, SKPathOp.Difference);
+        using var crust = new SKPaint { IsAntialias = true, Shader = SKShader.CreateLinearGradient(new SKPoint(s * .2f, s * .05f), new SKPoint(s * .75f, s * .95f),
+            small ? new[] { C(0x4A3730), C(0x2A1D19) } : new[] { C(0x3D2E29), C(0x1B1311) }, (float[]?)null, SKShaderTileMode.Clamp) };
+        c.DrawPath(plates, crust);
+        if (!small)
+        {
+            // Heat bleeding onto the plate edges, a cooling hairline, a lit top edge, the white-hot core, the glow from below.
+            using var bleed = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw * 2.6f, Color = C(0xFF6A1F).WithAlpha(150), MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .03f), BlendMode = SKBlendMode.Screen };
+            c.DrawPath(cracks, bleed);
+            using var hair = Poly(s, false, 61, 41, 64, 30, 71, 21);
+            using var hp = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw * .45f, StrokeCap = SKStrokeCap.Round,
+                Shader = SKShader.CreateLinearGradient(new SKPoint(s * .61f, s * .41f), new SKPoint(s * .71f, s * .21f), new[] { C(0xFFB347), C(0xFF6A1F).WithAlpha(0) }, (float[]?)null, SKShaderTileMode.Clamp) };
+            c.DrawPath(hair, hp);
+            using var lit = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = s * .012f,
+                Shader = SKShader.CreateLinearGradient(new SKPoint(s * .1f, s * .1f), new SKPoint(s * .5f, s * .5f), new[] { SKColors.White.WithAlpha(60), SKColors.White.WithAlpha(0) }, (float[]?)null, SKShaderTileMode.Clamp) };
+            c.DrawPath(stone, lit);
+            using var core = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw * .38f, Color = C(0xFFF1C2).WithAlpha(230), StrokeJoin = SKStrokeJoin.Round };
+            c.DrawPath(cracks, core);
+            using var rim = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = s * .05f, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .02f),
+                Shader = SKShader.CreateLinearGradient(new SKPoint(0, s * .55f), new SKPoint(0, s), new[] { C(0xFF6A1F).WithAlpha(0), C(0xFF6A1F).WithAlpha(200) }, (float[]?)null, SKShaderTileMode.Clamp) };
+            c.DrawPath(stone, rim);
+        }
+        c.Restore();
+    }
+
+    /// The card the panel shows for a few seconds when Ember starts.
+    public static SKBitmap Intro()
+    {
+        const int w = TuringLcd.Width, h = TuringLcd.Height;
+        var bmp = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var c = new SKCanvas(bmp);
+        c.Clear(C(0x0D0C0B));
+        using (var warm = new SKPaint { IsAntialias = true, Shader = SKShader.CreateRadialGradient(new SKPoint(w / 2f, 96), 250,
+            new[] { C(0xFF5A1F).WithAlpha(40), C(0xFF5A1F).WithAlpha(0) }, (float[]?)null, SKShaderTileMode.Clamp) })
+            c.DrawRect(0, 0, w, h, warm);
+        c.Save();
+        c.Translate(w / 2f - 50, 38);
+        Draw(c, 100, true);
+        c.Restore();
+        using var bold = SKTypeface.FromFamilyName("Bahnschrift", new SKFontStyle(600, 5, SKFontStyleSlant.Upright)) ?? SKTypeface.Default;
+        using var regular = SKTypeface.FromFamilyName("Bahnschrift", SKFontStyle.Normal) ?? SKTypeface.Default;
+        void Text(string text, SKTypeface tf, float size, float y, uint color)
+        {
+            using var f = new SKFont(tf, size) { Edging = SKFontEdging.SubpixelAntialias };
+            using var p = new SKPaint { IsAntialias = true, Color = C(color) };
+            c.DrawText(text, (w - f.MeasureText(text)) / 2, y, f, p);
+        }
+        Text("ember", bold, 48, 196, 0xEEE8E2);
+        Text(L.F("version {0}", App.Version), regular, 14, 222, 0xA69D94);
+        Text("github.com/cybvlsky/Ember", regular, 13, 284, 0x8A8178);
+        Text(L.T("made by cybvlsky"), regular, 13, 302, 0x6A625B);
         return bmp;
     }
 
     public static Icon Tray()
     {
         int size = Math.Max(16, SystemInformation.SmallIconSize.Width);
-        using var logo = Logo(size, false);
+        using var logo = Logo(size);
         using var data = logo.Encode(SKEncodedImageFormat.Png, 100);
         using var ms = new MemoryStream(data.ToArray());
         using var bmp = new Bitmap(ms);
@@ -571,7 +677,7 @@ public static class Icons
     public static void WriteIco(string path)
     {
         int[] sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
-        var pngs = sizes.Select(sz => { using var b = Logo(sz, true); using var d = b.Encode(SKEncodedImageFormat.Png, 100); return d.ToArray(); }).ToArray();
+        var pngs = sizes.Select(sz => { using var b = Logo(sz); using var d = b.Encode(SKEncodedImageFormat.Png, 100); return d.ToArray(); }).ToArray();
         using var f = File.Create(path);
         using var w = new BinaryWriter(f);
         w.Write((short)0); w.Write((short)1); w.Write((short)sizes.Length);
@@ -587,10 +693,51 @@ public static class Icons
     }
 }
 
+/// Downloads the official PawnIO installer, checks the signature and runs it. Used by the Screen page and by
+/// the Ember installer (`--install-pawnio`), which runs elevated, so PawnIO's own setup needs no second prompt.
+public static class PawnIo
+{
+    public enum Result { Installed, NotFinished, BadSignature, Failed }
+    const string Url = "https://github.com/namazso/PawnIO.Setup/releases/latest/download/PawnIO_setup.exe";
+
+    public static async Task<Result> Install()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "Ember");
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, "PawnIO_setup.exe");
+        try
+        {
+            using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(2) })
+            {
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("Ember/" + App.Version);
+                await File.WriteAllBytesAsync(file, await http.GetByteArrayAsync(Url));
+            }
+            // Held read-only with no write/delete sharing from verification to launch, so the file that runs (elevated) is the file that was checked.
+            using var hold = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var signer = await Task.Run(() => Signature.Signer(file, "namazso.eu"));
+            if (signer == null)
+            {
+                Log.Warn("PawnIO setup signature invalid");
+                return Result.BadSignature;
+            }
+            Log.Info($"PawnIO setup signed by {signer}");
+            using var p = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true });
+            if (p != null) await p.WaitForExitAsync();
+            return Sensors.PawnIoVersion != null ? Result.Installed : Result.NotFinished;
+        }
+        catch (Exception e)
+        {
+            Log.Error("pawnio install", e);
+            return Result.Failed;
+        }
+    }
+}
+
 /// Authenticode check for downloaded installers (PawnIO): valid, trusted, and published by namazso.
 static class Signature
 {
-    public static string? Signer(string file)
+    /// The full subject when `file` carries a valid Authenticode signature whose certificate CN is exactly `commonName`.
+    public static string? Signer(string file, string commonName)
     {
         var fi = new WINTRUST_FILE_INFO { cbStruct = (uint)Marshal.SizeOf<WINTRUST_FILE_INFO>(), pcwszFilePath = file };
         IntPtr pFile = Marshal.AllocHGlobal(Marshal.SizeOf<WINTRUST_FILE_INFO>());
@@ -601,9 +748,9 @@ static class Signature
             var action = new Guid("00AAC56B-CD44-11d0-8CC2-00C04FC295EE"); // WINTRUST_ACTION_GENERIC_VERIFY_V2
             if (WinVerifyTrust(new IntPtr(-1), ref action, ref data) != 0) return null;
 #pragma warning disable SYSLIB0057
-            var subject = System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(file).Subject;
+            using var cert = new System.Security.Cryptography.X509Certificates.X509Certificate2(System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(file));
 #pragma warning restore SYSLIB0057
-            return subject.Contains("namazso", StringComparison.OrdinalIgnoreCase) ? subject : null;
+            return string.Equals(cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false), commonName, StringComparison.OrdinalIgnoreCase) ? cert.Subject : null;
         }
         catch { return null; }
         finally { Marshal.FreeHGlobal(pFile); }

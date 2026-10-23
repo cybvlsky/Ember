@@ -1,0 +1,31 @@
+{
+  "name": "Cores",
+  "description": "Every CPU thread as its own bar, so you can see what the processor is really doing.",
+  "font": "Bahnschrift",
+  "bg": "#060810",
+  "palette": {
+    "card": "#0E1322", "line": "#1B2238", "text": "#EDF1FF", "sub": "#8892B0", "dim": "#525C7A",
+    "track": "#121A2E", "a1": "#38BDF8", "a2": "#818CF8", "a3": "#F472B6", "warn": "#FBBF24", "crit": "#F43F5E"
+  },
+  "widgets": [
+    { "type": "glow", "name": "Glow", "x": 40, "y": 60, "w": 400, "h": 260, "color": "a2/14" },
+    { "type": "glow", "name": "Glow 2", "x": 260, "y": -120, "w": 320, "h": 240, "color": "a1/10" },
+
+    { "type": "text", "name": "Description", "x": 24, "y": 22, "text": "PROCESSOR", "size": 9, "weight": 600, "spacing": 2, "color": "dim" },
+    { "type": "text", "name": "Name", "x": 24, "y": 38, "w": 250, "text": "{cpu.name}", "size": 20, "weight": 600 },
+    { "type": "text", "name": "Details", "x": 24, "y": 68, "text": "{cpu.clock:ghz} GHz   ·   {cpu.power:0} W   ·   {cpu.load:0}%", "size": 12.5, "color": "sub" },
+    { "type": "text", "name": "Temp", "x": 430, "y": 24, "align": "right", "text": "{cpu.temp:0}", "size": 52, "weight": 600, "sensor": "cpu.temp", "warn": 80, "crit": 90 },
+    { "type": "text", "name": "°C", "x": 434, "y": 26, "text": "°C", "size": 15, "color": "sub" },
+
+    { "type": "cores", "name": "Threads", "x": 24, "y": 98, "w": 432, "h": 128, "sensor": "cpu.t", "gap": 7, "radius": 5, "colors": ["a1", "a2", "a3"], "smooth": 0.3 },
+    { "type": "text", "name": "Threads label", "x": 24, "y": 236, "text": "{cpu.threads:0} threads", "size": 10.5, "color": "dim" },
+    { "type": "text", "name": "Max", "x": 456, "y": 236, "align": "right", "text": "busiest  {cpu.loadmax:0}%", "size": 10.5, "color": "dim" },
+
+    { "type": "rect", "name": "GPU bar", "x": 12, "y": 254, "w": 456, "h": 56, "radius": 14, "color": "card", "stroke": "line" },
+    { "type": "text", "name": "GPU label", "x": 26, "y": 266, "text": "GPU", "size": 9, "weight": 600, "spacing": 2, "color": "dim" },
+    { "type": "text", "name": "GPU temp", "x": 26, "y": 282, "text": "{gpu.temp:0}°C", "size": 17, "weight": 600, "sensor": "gpu.temp", "warn": 78, "crit": 86 },
+    { "type": "bar", "name": "GPU load", "x": 96, "y": 286, "w": 200, "h": 6, "sensor": "gpu.load", "colors": ["a1", "a2", "a3"] },
+    { "type": "text", "name": "GPU %", "x": 96, "y": 268, "text": "{gpu.load:0}%  ·  {gpu.power:0} W", "size": 10.5, "color": "sub" },
+    { "type": "text", "name": "Clock", "x": 454, "y": 270, "align": "right", "text": "{time:HH:mm}", "size": 26, "weight": 600 }
+  ]
+}

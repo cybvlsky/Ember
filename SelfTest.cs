@@ -81,9 +81,17 @@ public static class SelfTest
 
         Check(Renderer.Format(double.NaN, null) == "--", "format NaN");
         Check(Sensors.PcieHook != null, "LHM NVIDIA PCIe throughput hook present");
-        Check(Renderer.Format(12.6e6, "rate") == "12,0 MB/s", $"format rate ({Renderer.Format(12.6e6, "rate")})");
+        L.Lang = "pl";
+        Check(Renderer.Format(12.6e6, "rate") == "12,0 MB/s", $"format rate, Polish ({Renderer.Format(12.6e6, "rate")})");
+        Check(Renderer.Format(5280, "ghz") == "5,28", "format ghz, Polish");
+        L.Lang = "en";
+        Check(Renderer.Format(12.6e6, "rate") == "12.0 MB/s", $"format rate ({Renderer.Format(12.6e6, "rate")})");
         Check(Renderer.Format(500_000, "rate") == "488 KB/s", $"format rate KB ({Renderer.Format(500_000, "rate")})");
-        Check(Renderer.Format(5280, "ghz") == "5,28", "format ghz");
+        Check(Renderer.Format(5280, "ghz") == "5.28", "format ghz");
+        // A Polish string that lost or renamed a {0} or {cpu.temp:0} would throw in string.Format or show the wrong value.
+        static string Holes(string t) => string.Join(" ", System.Text.RegularExpressions.Regex.Matches(t, @"\{[^}]*\}").Select(m => m.Value).Order());
+        var broken = L.Polish.Where(kv => Holes(kv.Key) != Holes(kv.Value)).Select(kv => kv.Key).ToList();
+        Check(broken.Count == 0, $"Polish strings keep their placeholders ({string.Join(" | ", broken)})");
         Check(Themes.NewId("Mój Motyw ąę", []) == "moj-motyw-ae", $"theme id ({Themes.NewId("Mój Motyw ąę", [])})");
         Check(Renderer.ParseHex("#FF8000") == new SKColor(255, 128, 0) && Renderer.ParseHex("#FF800080") == new SKColor(255, 128, 0, 128), "hex colours");
 
@@ -92,12 +100,18 @@ public static class SelfTest
         int before = Renderer.Errors;
         foreach (var t in themes)
         {
-            using var bmp = Renderer.Still(t, Snapshot.Demo(100));
-            using var empty = Renderer.Still(t, Snapshot.Empty);
+            foreach (var lang in L.Languages)
+            {
+                L.Lang = lang;
+                using var bmp = Renderer.Still(t, Snapshot.Demo(100));
+                using var empty = Renderer.Still(t, Snapshot.Empty);
+            }
+            L.Lang = "en";
             var back = Theme.Parse(t.ToJson());
             Check(back.Widgets.Count == t.Widgets.Count && back.ToJson() == t.ToJson(), $"theme {t.Id} JSON round trip");
         }
-        Check(Renderer.Errors == before, $"themes render without errors ({Renderer.Errors - before})");
+        using (var intro = Icons.Intro()) Check(intro.Width == FrameDiff.W, "start-up card renders");
+        Check(Renderer.Errors == before, $"themes render in both languages without errors ({Renderer.Errors - before})");
 
         log.Add(fails == 0 ? "ALL OK" : $"{fails} FAILED");
         File.WriteAllLines(Path.Combine(App.DataDir, "selftest.txt"), log);
@@ -119,9 +133,27 @@ public static class SelfTest
         }
     }
 
+    /// `--render <dir> [pl]`: a PNG per theme, its bandwidth heat map, the start-up card, the logo, and 4 s of
+    /// frames from the default theme (the README animation is made from those).
     public static int Render(string dir)
     {
         Directory.CreateDirectory(dir);
+        using (var intro = Icons.Intro()) using (var f = File.Create(Path.Combine(dir, "intro.png"))) intro.Encode(f, SKEncodedImageFormat.Png, 100);
+        foreach (int size in new[] { 512, 64 })
+            using (var logo = Icons.Logo(size, size > 64)) using (var f = File.Create(Path.Combine(dir, $"logo-{size}.png"))) logo.Encode(f, SKEncodedImageFormat.Png, 100);
+        var frames = Path.Combine(dir, "frames");
+        Directory.CreateDirectory(frames);
+        using (var r = new Renderer(Themes.LoadAll().First(t => t.Id == "ember")))
+        using (var frame = new SKBitmap(FrameDiff.W, FrameDiff.H, SKColorType.Bgra8888, SKAlphaType.Premul))
+        using (var c = new SKCanvas(frame))
+            for (int i = 0; i < 150; i++)
+            {
+                double now = 200 + i / 30.0;
+                r.Render(c, Snapshot.Demo(Math.Floor(now)), i == 0 ? 0 : 1 / 30.0, now);
+                if (i < 30) continue;
+                using var f = File.Create(Path.Combine(frames, $"{i - 30:000}.png"));
+                frame.Encode(f, SKEncodedImageFormat.Png, 100);
+            }
         var lines = new List<string>();
         foreach (var t in Themes.LoadAll())
         {

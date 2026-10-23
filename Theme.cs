@@ -15,7 +15,7 @@ namespace Ember;
 /// A layout for the 480x320 screen: a palette plus a z-ordered list of widgets. Stored as JSON.
 public sealed class Theme
 {
-    public string Name { get; set; } = "Nowy motyw";
+    public string Name { get; set; } = "New theme";
     public string? Description { get; set; }
     public string Font { get; set; } = "Segoe UI Variable Display";
     public string Bg { get; set; } = "#0A0D12";
@@ -36,7 +36,7 @@ public sealed class Theme
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public static Theme Parse(string json) => JsonSerializer.Deserialize<Theme>(json, Json) ?? throw new InvalidDataException("Pusty motyw");
+    public static Theme Parse(string json) => JsonSerializer.Deserialize<Theme>(json, Json) ?? throw new InvalidDataException("Empty theme");
     public string ToJson() => JsonSerializer.Serialize(this, Json);
     public Theme Clone() { var t = Parse(ToJson()); t.Id = Id; t.BuiltIn = BuiltIn; return t; }
 }
@@ -110,7 +110,8 @@ public static class Themes
         }
         // Built-in order: whatever "order" the file names give, but the signature theme first.
         list.Sort((a, b) => a.Id == "ember" ? -1 : b.Id == "ember" ? 1 : string.CompareOrdinal(a.Id, b.Id));
-        if (Directory.Exists(UserDir))
+        // Screenshots for the README show only what ships.
+        if (Directory.Exists(UserDir) && !App.Shots)
             foreach (var f in Directory.GetFiles(UserDir, "*.json").OrderBy(f => f))
             {
                 try
@@ -147,7 +148,7 @@ public static class Themes
             sb.Append(char.IsLetterOrDigit(ch) ? (ch == 'ł' ? 'l' : ch) : '-');
         }
         var baseId = string.Join("-", sb.ToString().Split('-', StringSplitOptions.RemoveEmptyEntries));
-        if (baseId.Length == 0) baseId = "motyw";
+        if (baseId.Length == 0) baseId = "theme";
         var ids = existing.Select(t => t.Id).ToHashSet();
         var id = baseId;
         for (int i = 2; ids.Contains(id); i++) id = $"{baseId}-{i}";
@@ -161,7 +162,8 @@ public static class Themes
 public sealed class Renderer : IDisposable
 {
     public const int W = TuringLcd.Width, H = TuringLcd.Height;
-    public static readonly CultureInfo Pl = CultureInfo.GetCultureInfo("pl-PL");
+    /// Panel text follows the UI language: decimal separator, day and month names.
+    static CultureInfo Cu => L.Culture;
 
     readonly Theme th;
     readonly Widget[] ws;
@@ -179,6 +181,7 @@ public sealed class Renderer : IDisposable
     {
         public double V = double.NaN, C, AutoMax = double.NaN;
         public double[]? Vs;
+        public string? Text;
         public List<(string? Lit, string? Key, string? Fmt)>? Tpl;
         public string? LastText;
         public float LastSize;
@@ -193,7 +196,12 @@ public sealed class Renderer : IDisposable
     {
         th = theme;
         ws = theme.Widgets.ToArray();
-        st = ws.Select(w => new State { Tpl = w.Type == "text" && w.Text?.Contains('{') == true ? ParseTpl(w.Text) : null }).ToArray();
+        // Static texts of the built-in themes are translation keys; user themes simply have no entry.
+        st = ws.Select(w =>
+        {
+            var text = w.Text is { } x ? L.T(x) : null;
+            return new State { Text = text, Tpl = w.Type == "text" && text?.Contains('{') == true ? ParseTpl(text) : null };
+        }).ToArray();
         firstDynamic = Array.FindIndex(ws, IsDynamic);
         if (firstDynamic < 0) firstDynamic = ws.Length;
         bg = Col(theme.Bg, SKColors.Black).WithAlpha(255);
@@ -428,8 +436,8 @@ public sealed class Renderer : IDisposable
         foreach (var (lit, key, fmt) in tpl)
         {
             if (lit != null) { sb.Append(lit); continue; }
-            if (key == "time") { sb.Append(clock.ToString(fmt ?? "HH:mm", Pl)); continue; }
-            if (key == "date") { sb.Append(clock.ToString(fmt ?? "d MMMM", Pl)); continue; }
+            if (key == "time") { sb.Append(clock.ToString(fmt ?? "HH:mm", Cu)); continue; }
+            if (key == "date") { sb.Append(clock.ToString(fmt ?? "d MMMM", Cu)); continue; }
             if (s.Str(key!) is string str) { sb.Append(str); continue; }
             double v = Value(key, s);
             sb.Append(Format(v, fmt));
@@ -445,16 +453,16 @@ public sealed class Renderer : IDisposable
             case "rate": return RateValue(v) + " " + RateUnit(v);
             case "ratev": return RateValue(v);
             case "rateu": return RateUnit(v);
-            case "mbit": return (v * 8 / 1e6).ToString(v * 8 < 1e7 ? "0.0" : "0", Pl);
-            case "ghz": return (v / 1000).ToString("0.00", Pl);
+            case "mbit": return (v * 8 / 1e6).ToString(v * 8 < 1e7 ? "0.0" : "0", Cu);
+            case "ghz": return (v / 1000).ToString("0.00", Cu);
             default:
-                try { return v.ToString(fmt ?? "0", Pl); }
-                catch (FormatException) { return v.ToString("0", Pl); }
+                try { return v.ToString(fmt ?? "0", Cu); }
+                catch (FormatException) { return v.ToString("0", Cu); }
         }
     }
 
     static string RateUnit(double v) => v < 1024 * 1024 ? "KB/s" : "MB/s";
-    static string RateValue(double v) => v < 1024 * 1024 ? (v / 1024).ToString("0", Pl) : (v / 1024 / 1024).ToString(v < 100 * 1024 * 1024 ? "0.0" : "0", Pl);
+    static string RateValue(double v) => v < 1024 * 1024 ? (v / 1024).ToString("0", Cu) : (v / 1024 / 1024).ToString(v < 100 * 1024 * 1024 ? "0.0" : "0", Cu);
 
     void DrawText(SKCanvas c, Widget w, State state, Snapshot s, double dt)
     {
@@ -463,8 +471,8 @@ public sealed class Renderer : IDisposable
             Animating = true;
             if (clock.Millisecond >= 500) return;
         }
-        string text = state.Tpl != null ? Expand(state.Tpl, s) : w.Text ?? "";
-        if (w.Has("upper")) text = text.ToUpper(Pl);
+        string text = state.Tpl != null ? Expand(state.Tpl, s) : state.Text ?? "";
+        if (w.Has("upper")) text = text.ToUpper(Cu);
         float size = w.Size ?? 16;
         var tf = Face(w.Font ?? th.Font, w.Weight ?? 400, w.Stretch ?? 5);
         if (text != state.LastText || state.Blob == null && text.Length > 0)

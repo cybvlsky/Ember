@@ -221,13 +221,22 @@ public sealed class Engine : IDisposable
     Renderer? renderer;
     double resumeAt;
     bool lcdDark, resetNext;
-    int appliedBrightness = -1;
     bool? appliedFlip;
     int previewSeq, statLines;
 
+    // Backlight choreography. The link is far too slow to fade pixels, but the backlight is one 6-byte command:
+    // every time the panel (re)appears the frame is drawn in the dark and the backlight fades up. The first
+    // connection shows the start-up card first.
+    int phase;           // 0 live, 1 drawing in the dark, 2 fading in, 3 holding the card, 4 fading the card out
+    double phaseAt;
+    bool intro, introDue;
+    int level = -1;      // brightness % last sent
+    SKBitmap? introFrame;
+    const double FadeIn = 0.7, Hold = 2.8, FadeOut = 0.5, DrawTimeout = 4;
+
     public volatile bool PreviewWanted;
-    public volatile string Status = "Szukam ekranu…";
-    public volatile bool Connected;
+    public volatile string Status = L.T("Looking for the screen…");
+    public volatile bool Connected, Searching = true;
     public volatile float Fps, KBps;
     public volatile float RenderMs;
 
@@ -236,6 +245,7 @@ public sealed class Engine : IDisposable
         this.cfg = cfg;
         this.sensors = sensors;
         this.theme = theme;
+        introDue = cfg.Intro && !Sensors.Demo;
     }
 
     public Theme Theme { get => theme; set { theme = value; wake.Set(); } }
@@ -299,20 +309,29 @@ public sealed class Engine : IDisposable
                 bool active = !suspended && !userBlank && !(monitorsOff && cfg.SleepWithMonitors);
                 bool fresh = renderer == null || renderer.Theme != theme;
                 if (fresh) { renderer?.Dispose(); renderer = new Renderer(theme); }
-                if (reconnect) { reconnect = false; Disconnect("Ponowne łączenie…"); nextTry = 0; }
+                if (reconnect) { reconnect = false; Disconnect(L.T("Reconnecting…")); nextTry = 0; }
                 if (invalidate) { invalidate = false; diff.Invalidate(); }
 
-                if (lcd.IsOpen && !active && !lcdDark) { lcd.SetBrightness(0); lcdDark = true; }
+                if (lcd.IsOpen && !active && !lcdDark) { Backlight(0); lcdDark = true; phase = 0; intro = false; }
                 if (suspended)
                 {
-                    if (lcd.IsOpen) Disconnect("Uśpiono");
+                    if (lcd.IsOpen) Disconnect(L.T("Asleep"));
                     darkened.Set();
                 }
                 else if (active && !lcd.IsOpen && t0 >= nextTry && t0 >= resumeAt) { nextTry = t0 + 2; Connect(); }
-                if (lcd.IsOpen && active) ApplyControls();
+                if (lcd.IsOpen && active)
+                {
+                    // Back from dark: whatever the panel still holds is stale, so draw first and fade up after.
+                    if (lcdDark) { lcdDark = false; Begin(t0); }
+                    ApplyControls();
+                }
 
                 double r0 = Clock.Now;
-                using (var c = new SKCanvas(frame)) renderer!.Render(c, sensors.Current, fresh ? 0 : dt, t0);
+                using (var c = new SKCanvas(frame))
+                {
+                    if (intro) c.DrawBitmap(introFrame ??= Icons.Intro(), 0, 0);
+                    else renderer!.Render(c, sensors.Current, fresh ? 0 : dt, t0);
+                }
                 RenderMs = (float)((Clock.Now - r0) * 1000);
                 if (PreviewWanted)
                     lock (previewLock) { Marshal.Copy(frame.GetPixels(), preview, 0, preview.Length); previewSeq++; }
@@ -325,6 +344,7 @@ public sealed class Engine : IDisposable
                     FrameDiff.To565(frame, next, converted);
                     sent = diff.Send(next, t0, Math.Max(4096, FrameDiff.Bandwidth / fps), lcd.Blit, out pending);
                     if (sent > 0) { frames++; bytes += sent; }
+                    Sequence(Clock.Now, pending);
                 }
                 if (Clock.Now - statT >= 1)
                 {
@@ -334,7 +354,7 @@ public sealed class Engine : IDisposable
                     frames = 0; bytes = 0; statT = Clock.Now;
                     if (Connected && ++statLines % 60 == 1) Log.Info($"stats: {Fps:0.0} fps, {KBps:0.0} KB/s, render {RenderMs:0.00} ms, theme {theme.Id}");
                 }
-                double period = renderer!.Animating || pending || sent > 0 ? 1.0 / fps : 0.25;
+                double period = phase is 2 or 4 ? 1.0 / 60 : renderer!.Animating || pending || sent > 0 ? 1.0 / fps : phase == 3 ? 0.1 : 0.25;
                 double wait = period - (Clock.Now - t0);
                 if (wait > 0.001) pacer.Wait(wait, wake);
             }
@@ -355,12 +375,55 @@ public sealed class Engine : IDisposable
         try { if (lcd.IsOpen) { lcd.SetBrightness(0); lcd.ScreenOff(); } } catch { }
         lcd.Close();
         renderer?.Dispose();
+        introFrame?.Dispose();
     }
+
+    void Backlight(int pct)
+    {
+        if (pct == level) return;
+        lcd.SetBrightness(pct);
+        level = pct;
+    }
+
+    /// Dark, then draw. The card only shows on the first connection after Ember starts.
+    void Begin(double now)
+    {
+        Backlight(0);
+        intro = introDue;
+        introDue = false;
+        phase = 1;
+        phaseAt = now;
+    }
+
+    void Sequence(double now, bool pending)
+    {
+        switch (phase)
+        {
+            case 1 when !pending || now - phaseAt > DrawTimeout:
+                phase = 2; phaseAt = now;
+                break;
+            case 2:
+                double k = Math.Min(1, (now - phaseAt) / FadeIn);
+                Backlight((int)Math.Round(cfg.Brightness * Ease(k)));
+                if (k >= 1) { phase = intro ? 3 : 0; phaseAt = now; }
+                break;
+            case 3 when now - phaseAt >= Hold:
+                phase = 4; phaseAt = now;
+                break;
+            case 4:
+                double j = Math.Min(1, (now - phaseAt) / FadeOut);
+                Backlight((int)Math.Round(cfg.Brightness * (1 - Ease(j))));
+                if (j >= 1) { intro = false; phase = 1; phaseAt = now; }
+                break;
+        }
+    }
+
+    static double Ease(double k) => k * k * (3 - 2 * k);
 
     void Connect()
     {
         var ports = cfg.Port == "auto" ? TuringLcd.FindPorts() : [cfg.Port];
-        if (ports.Count == 0) { Status = "Nie widzę ekranu. Sprawdź kabel USB."; Connected = false; return; }
+        if (ports.Count == 0) { Status = L.T("No screen found. Check the USB cable."); Connected = false; Searching = true; return; }
         string err = "";
         foreach (var port in ports)
         {
@@ -374,24 +437,27 @@ public sealed class Engine : IDisposable
                     try { lcd.Reset(); } catch (Exception e) { Log.Warn("reset: " + e.Message); }
                     lcd.Close();
                     resumeAt = Clock.Now + 6;
-                    Status = "Restartuję ekran…";
+                    Status = L.T("Restarting the screen…");
                     return;
                 }
+                level = -1;
+                Backlight(0);
                 lcd.ScreenOn();
                 lcd.SetOrientation(cfg.Flip);
-                lcd.SetBrightness(cfg.Brightness);
                 appliedFlip = cfg.Flip;
-                appliedBrightness = cfg.Brightness;
                 lcdDark = false;
                 diff.Invalidate();
+                Begin(Clock.Now);
                 Connected = true;
-                Status = $"Połączono · {port}";
+                Searching = false;
+                Status = L.F("Connected on {0}", port);
                 Log.Info($"connected {port}");
                 return;
             }
             catch (Exception e) { err = e.Message; lcd.Close(); }
         }
         Connected = false;
+        Searching = false;
         Status = err;
     }
 
@@ -399,6 +465,9 @@ public sealed class Engine : IDisposable
     {
         lcd.Close();
         Connected = false;
+        Searching = false;
+        phase = 0;
+        intro = false;
         Status = why;
         diff.Invalidate();
     }
@@ -411,12 +480,7 @@ public sealed class Engine : IDisposable
             appliedFlip = cfg.Flip;
             diff.Invalidate();
         }
-        if (lcdDark || appliedBrightness != cfg.Brightness)
-        {
-            lcd.SetBrightness(cfg.Brightness);
-            appliedBrightness = cfg.Brightness;
-            lcdDark = false;
-        }
+        if (phase == 0) Backlight(cfg.Brightness);
     }
 }
 

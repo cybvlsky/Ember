@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,27 +20,33 @@ namespace Ember;
 public partial class MainWindow : Window
 {
     const int W = TuringLcd.Width, H = TuringLcd.Height;
-    static readonly Brush TextBrush = Br("#E8ECF2"), SubBrush = Br("#8A94A6"), DimBrush = Br("#5E697C"), OkBrush = Br("#3DDC84"), BadBrush = Br("#FF6B5B"), AmberBrush = Br("#FFB347");
+    const int GlowW = 24, GlowH = 16;
+    static readonly Brush TextBrush = Br("#EEE8E2"), SubBrush = Br("#A69D94"), DimBrush = Br("#756D66"), OkBrush = Br("#8BD49C"), BadBrush = Br("#FF7466"),
+        EmberBrush = Br("#FF7A33"), LineBrush = Br("#3A3633"), RaisedBrush = Br("#34302D");
 
     readonly DispatcherTimer timer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
     readonly WriteableBitmap screenBmp = new(W, H, 96, 96, PixelFormats.Pbgra32, null);
-    readonly byte[] screenBuf = new byte[W * H * 4];
+    readonly WriteableBitmap glowBmp = new(GlowW, GlowH, 96, 96, PixelFormats.Pbgra32, null);
+    readonly byte[] screenBuf = new byte[W * H * 4], glowBuf = new byte[GlowW * GlowH * 4];
     int previewSeen = -1, tick;
     string page = "screen";
-    readonly Grid toastHost = new() { IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 26) };
-    readonly Grid modalHost = new() { Visibility = Visibility.Collapsed, Background = Br("#B0050709") };
+    readonly Grid toastHost = new() { IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 64) };
+    readonly Grid modalHost = new() { Visibility = Visibility.Collapsed, Background = Br("#A0141210") };
+
+    static string T(string en) => L.T(en);
 
     public MainWindow()
     {
         InitializeComponent();
-        ((Grid)Root.Child).Children.Add(toastHost);
-        Grid.SetColumnSpan(toastHost, 2);
-        ((Grid)Root.Child).Children.Add(modalHost);
-        Grid.SetColumnSpan(modalHost, 2);
-        using (var logo = Icons.Logo(96, true)) Logo.Source = ToImage(logo);
-        Icon = Logo.Source;
-        VersionText.Text = "v" + typeof(App).Assembly.GetName().Version!.ToString(2);
+        var root = (Grid)Root.Child;
+        root.Children.Add(toastHost);
+        Grid.SetRowSpan(toastHost, 2);
+        root.Children.Add(modalHost);
+        Grid.SetRowSpan(modalHost, 2);
+        using (var logo = Icons.Logo(44)) Logo.Source = ToImage(logo);
+        using (var icon = Icons.Logo(64)) Icon = ToImage(icon);
         ScreenImage.Source = screenBmp;
+        GlowImage.Source = glowBmp;
 
         NavScreen.Checked += (_, _) => Show("screen");
         NavThemes.Checked += (_, _) => Show("themes");
@@ -62,7 +67,7 @@ public partial class MainWindow : Window
 
         InitScreenPage();
         InitEditor();
-        SensorSearch.TextChanged += (_, _) => FilterSensors();
+        SensorSearch.TextChanged += (_, _) => { SearchHint.Visibility = SensorSearch.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; FilterSensors(); };
         timer.Tick += (_, _) => Tick();
         Loaded += (_, _) => OnLoaded();
         Closing += (_, e) => { if (EditorDirty && !closeConfirmed) { e.Cancel = true; _ = ConfirmClose(); } };
@@ -75,7 +80,7 @@ public partial class MainWindow : Window
 
     async Task ConfirmClose()
     {
-        if (await Confirm("Niezapisane zmiany", "Motyw w edytorze ma niezapisane zmiany. Zamknąć okno i je porzucić?", "Porzuć", "Wróć do edytora"))
+        if (await Confirm(T("Unsaved changes"), T("The theme in the editor has unsaved changes. Close the window and lose them?"), T("Discard"), T("Back to the editor")))
         {
             closeConfirmed = true;
             Close();
@@ -88,11 +93,7 @@ public partial class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         int round = 2;
         DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int)); // Windows 11 rounded corners
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
-        var st = (ScaleTransform)Root.RenderTransform;
-        st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.985, 1, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
-        st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.985, 1, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
+        Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
         timer.Start();
     }
 
@@ -100,47 +101,35 @@ public partial class MainWindow : Window
 
     // ---------- shell ----------
 
+    public void GoTo(string name) =>
+        (name switch { "themes" => NavThemes, "editor" => NavEditor, "sensors" => NavSensors, "settings" => NavSettings, _ => NavScreen }).IsChecked = true;
+
     void Show(string name)
     {
         if (page == "editor" && name != "editor") StopLiveEdit();
         page = name;
         var pages = new Dictionary<string, FrameworkElement> { ["screen"] = PageScreen, ["themes"] = PageThemes, ["editor"] = PageEditor, ["sensors"] = PageSensors, ["settings"] = PageSettings };
         foreach (var (k, el) in pages) el.Visibility = k == name ? Visibility.Visible : Visibility.Collapsed;
-        var shown = pages[name];
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        shown.RenderTransform = new TranslateTransform(0, 10);
-        shown.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
-        shown.RenderTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+        pages[name].BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
         TopActions.Children.Clear();
         App.Engine.PreviewWanted = name == "screen";
         switch (name)
         {
-            case "screen":
-                PageTitle.Text = "Ekran";
-                PageSub.Text = "Tak teraz wygląda Twój ekranik. Zmiany widać na żywo.";
-                break;
             case "themes":
-                PageTitle.Text = "Motywy";
-                PageSub.Text = "Gotowe układy na Twoich prawdziwych danych. Kliknij, żeby ustawić.";
-                TopActions.Children.Add(Btn("Nowy motyw", "", true, () => NewTheme()));
+                TopActions.Children.Add(Btn(T("Import"), null, false, ImportTheme));
                 TopActions.Children.Add(Gap());
-                TopActions.Children.Add(Btn("Importuj", "", false, ImportTheme));
+                TopActions.Children.Add(Btn(T("Open folder"), null, false, () => App.OpenFolder(Themes.UserDir)));
                 TopActions.Children.Add(Gap());
-                TopActions.Children.Add(Btn("Folder", "", false, () => App.OpenFolder(Themes.UserDir)));
+                TopActions.Children.Add(Btn(T("New theme"), null, true, () => NewTheme()));
                 BuildGallery();
                 break;
             case "editor":
-                PageTitle.Text = "Edytor";
                 ShowEditorActions();
                 break;
             case "sensors":
-                PageTitle.Text = "Czujniki";
-                PageSub.Text = "Wszystko, co Ember odczytuje z komputera. Wartości odświeżają się co sekundę.";
                 BuildSensors();
                 break;
             case "settings":
-                PageTitle.Text = "Ustawienia";
-                PageSub.Text = "Połączenie, czujniki i start z systemem.";
                 BuildSettings();
                 break;
         }
@@ -154,7 +143,10 @@ public partial class MainWindow : Window
         {
             case "screen":
                 if (App.Engine.CopyPreview(screenBuf, ref previewSeen))
+                {
                     screenBmp.WritePixels(new Int32Rect(0, 0, W, H), screenBuf, W * 4, 0);
+                    if (tick % 4 == 0) UpdateGlow();
+                }
                 if (tick % 10 == 0) UpdateScreenStatus();
                 break;
             case "themes":
@@ -167,7 +159,29 @@ public partial class MainWindow : Window
                 if (tick % 30 == 0) UpdateSensors();
                 break;
         }
-        if (tick % 15 == 0) StatusDot.Fill = App.Engine.Connected ? OkBrush : DimBrush;
+    }
+
+    /// Averages the frame into a 24x16 grid; blown up and blurred behind the device it reads as the panel lighting the desk.
+    void UpdateGlow()
+    {
+        const int cw = W / GlowW, ch = H / GlowH;
+        for (int gy = 0; gy < GlowH; gy++)
+            for (int gx = 0; gx < GlowW; gx++)
+            {
+                int r = 0, g = 0, b = 0, n = 0;
+                for (int y = gy * ch + 2; y < (gy + 1) * ch; y += 4)
+                    for (int x = gx * cw + 2; x < (gx + 1) * cw; x += 4)
+                    {
+                        int i = (y * W + x) * 4;
+                        b += screenBuf[i]; g += screenBuf[i + 1]; r += screenBuf[i + 2]; n++;
+                    }
+                int o = (gy * GlowW + gx) * 4;
+                glowBuf[o] = (byte)Math.Min(255, b * 3 / 2 / n);
+                glowBuf[o + 1] = (byte)Math.Min(255, g * 3 / 2 / n);
+                glowBuf[o + 2] = (byte)Math.Min(255, r * 3 / 2 / n);
+                glowBuf[o + 3] = 255;
+            }
+        glowBmp.WritePixels(new Int32Rect(0, 0, GlowW, GlowH), glowBuf, GlowW * 4, 0);
     }
 
     void OnKey(object sender, KeyEventArgs e)
@@ -175,26 +189,27 @@ public partial class MainWindow : Window
         if (page == "editor") EditorKey(e);
     }
 
-    /// `--screenshots <dir>`: a PNG of every page, so the UI can be checked without looking at the monitor.
+    /// `--screenshots <dir>`: every page as a PNG at 2x, for checking the UI without a monitor and for the README.
     public async Task Screenshots(string dir)
     {
         Directory.CreateDirectory(dir);
         async Task Shot(string name)
         {
-            await Task.Delay(900);
-            var rtb = new RenderTargetBitmap((int)Root.ActualWidth, (int)Root.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            await Task.Delay(1200);
+            int w = (int)Root.ActualWidth, h = (int)Root.ActualHeight;
+            var rtb = new RenderTargetBitmap(w * 2, h * 2, 192, 192, PixelFormats.Pbgra32);
             rtb.Render(Root);
             var enc = new PngBitmapEncoder();
             enc.Frames.Add(BitmapFrame.Create(rtb));
             using var f = File.Create(Path.Combine(dir, name + ".png"));
             enc.Save(f);
         }
-        await Shot("1-screen");
-        NavThemes.IsChecked = true; await Shot("2-themes");
-        NavEditor.IsChecked = true; await Shot("3-editor");
-        if (draft != null && draft.Widgets.Count > 8) { Select(Math.Min(8, draft.Widgets.Count - 1)); await Shot("4-editor-selected"); }
-        NavSensors.IsChecked = true; await Shot("5-sensors");
-        NavSettings.IsChecked = true; await Shot("6-settings");
+        await Shot("screen");
+        NavThemes.IsChecked = true; await Shot("themes");
+        NavEditor.IsChecked = true; await Shot("editor");
+        if (draft != null && draft.Widgets.Count > 12) { Select(draft.Widgets.FindIndex(w => w.Type == "gauge")); await Shot("editor-selected"); }
+        NavSensors.IsChecked = true; await Shot("sensors");
+        NavSettings.IsChecked = true; await Shot("settings");
         await ExerciseEditor(Shot);
     }
 
@@ -214,7 +229,7 @@ public partial class MainWindow : Window
         int n = draft!.Widgets.Count;
         for (int i = 0; i < n; i++) { Select(i); TickEditor(); await Task.Delay(20); }
         Select(draft.Widgets.FindIndex(w => w.Type == "gauge"));
-        await shot("7-editor-gauge");
+        await shot("uitest-gauge");
         Select(draft.Widgets.FindIndex(w => w.Type == "graph"));
         MoveLayer(-1); MoveLayer(1); Duplicate(); DeleteSel();
         Select(-1);
@@ -224,11 +239,11 @@ public partial class MainWindow : Window
         for (int i = 0; i < 40; i++) Undo();
         for (int i = 0; i < 5; i++) Redo();
         TickEditor();
-        draft.Name = "Test UI Ember";
+        draft.Name = "UI test";
         Save();
-        var saved = App.AllThemes.FirstOrDefault(t => t.Id == draft.Id && !t.BuiltIn);
-        Log.Info($"uitest saved={(saved != null)} widgets={saved?.Widgets.Count} undo={undo.Count}");
-        if (saved != null) Themes.Delete(saved);
+        bool saved = File.Exists(Path.Combine(Themes.UserDir, draft.Id + ".json"));
+        Log.Info($"uitest saved={saved} widgets={draft.Widgets.Count} undo={undo.Count}");
+        Themes.Delete(draft);
         App.AllThemes = Themes.LoadAll();
         App.SetTheme(App.AllThemes.FirstOrDefault(t => t.Id == before) ?? App.AllThemes[0]);
         savedJson = draft.ToJson();
@@ -263,6 +278,14 @@ public partial class MainWindow : Window
         if (icon != null) sp.Children.Add(new TextBlock { Text = icon, FontFamily = (FontFamily)FindResource("Ico"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, text.Length > 0 ? 8 : 0, 0) });
         if (text.Length > 0) sp.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center });
         var b = new Button { Content = sp, Style = (Style)FindResource(primary ? "Primary" : "Ghost"), ToolTip = tip };
+        if (text.Length == 0) b.Padding = new Thickness(9, 7, 9, 7);
+        b.Click += (_, _) => click();
+        return b;
+    }
+
+    Button Link(string text, Action click)
+    {
+        var b = new Button { Content = text, Style = (Style)FindResource("Link"), Margin = new Thickness(0, 0, 18, 0) };
         b.Click += (_, _) => click();
         return b;
     }
@@ -271,8 +294,8 @@ public partial class MainWindow : Window
     {
         var sp = new StackPanel();
         sp.Children.Add(new TextBlock { Text = title });
-        if (sub != null) sp.Children.Add(new TextBlock { Text = sub, Style = (Style)FindResource("SubText"), FontSize = 11.5 });
-        var cb = new CheckBox { Style = (Style)FindResource("Switch"), Content = sp, IsChecked = value, Margin = new Thickness(0, 0, 0, 12) };
+        if (sub != null) sp.Children.Add(new TextBlock { Text = sub, Style = (Style)FindResource("SubText"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
+        var cb = new CheckBox { Style = (Style)FindResource("Switch"), Content = sp, IsChecked = value, Margin = new Thickness(0, 4, 0, 12) };
         cb.Checked += (_, _) => changed(true);
         cb.Unchecked += (_, _) => changed(false);
         return cb;
@@ -287,54 +310,38 @@ public partial class MainWindow : Window
         return cb;
     }
 
-    public WrapPanel Chips<T>(IEnumerable<(T Value, string Label)> items, T selected, Action<T> changed)
+    /// A segmented control: one frame, the chosen segment filled.
+    public Border Chips<TV>(IEnumerable<(TV Value, string Label)> items, TV selected, Action<TV> changed)
     {
         var wp = new WrapPanel();
         string group = Guid.NewGuid().ToString();
         foreach (var (v, l) in items)
         {
-            var rb = new RadioButton { Content = l, GroupName = group, Style = (Style)FindResource("Chip"), IsChecked = EqualityComparer<T>.Default.Equals(v, selected) };
+            var rb = new RadioButton { Content = l, GroupName = group, Style = (Style)FindResource("Seg"), IsChecked = EqualityComparer<TV>.Default.Equals(v, selected) };
             var val = v;
             rb.Checked += (_, _) => changed(val);
             wp.Children.Add(rb);
         }
-        return wp;
+        return new Border { Child = wp, BorderBrush = (Brush)FindResource("Line2"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) };
     }
 
-    public TextBlock Caption(string text, double top = 14) => new() { Text = text, Style = (Style)FindResource("Cap"), Margin = new Thickness(0, top, 0, 8) };
-
-    Border Card(string title, double width, params UIElement[] children)
-    {
-        var sp = new StackPanel();
-        sp.Children.Add(new TextBlock { Text = title, Style = (Style)FindResource("H2"), Margin = new Thickness(0, 0, 0, 14) });
-        foreach (var c in children) sp.Children.Add(c);
-        return new Border { Style = (Style)FindResource("CardBorder"), Width = width, Margin = new Thickness(0, 0, 16, 16), Padding = new Thickness(22, 18, 22, 10), Child = sp };
-    }
+    public TextBlock Caption(string text, double top = 18) => new() { Text = text, Style = (Style)FindResource("Head"), Margin = new Thickness(0, top, 0, 8) };
 
     public void Toast(string text, bool bad = false)
     {
         var b = new Border
         {
-            Background = Br("#1A212D"), BorderBrush = bad ? BadBrush : Br("#3A2A18"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(16, 10, 16, 10), Margin = new Thickness(0, 0, 0, 0),
-            Child = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Children =
-                {
-                    new TextBlock { Text = bad ? "" : "", FontFamily = (FontFamily)FindResource("Ico"), Foreground = bad ? BadBrush : AmberBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) },
-                    new TextBlock { Text = text, Foreground = TextBrush },
-                },
-            },
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 6, Opacity = 0.5 },
+            Background = bad ? BadBrush : TextBrush, CornerRadius = new CornerRadius(6), Padding = new Thickness(16, 9, 16, 10),
+            Child = new TextBlock { Text = text, Foreground = Br("#1E1C1A"), FontWeight = FontWeights.SemiBold, FontSize = 13 },
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 6, Opacity = 0.4 },
             Opacity = 0,
         };
         toastHost.Children.Clear();
         toastHost.Children.Add(b);
         var anim = new DoubleAnimationUsingKeyFrames();
-        anim.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(180))));
-        anim.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2400))));
-        anim.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2800))));
+        anim.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(150))));
+        anim.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2600))));
+        anim.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(3000))));
         b.BeginAnimation(OpacityProperty, anim);
     }
 
@@ -342,21 +349,22 @@ public partial class MainWindow : Window
     public Task<bool> Confirm(string title, string text, string yes, string no)
     {
         var tcs = new TaskCompletionSource<bool>();
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 22, 0, 0) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 24, 0, 0) };
         void Done(bool v) { modalHost.Visibility = Visibility.Collapsed; modalHost.Children.Clear(); tcs.TrySetResult(v); }
         buttons.Children.Add(Btn(no, null, false, () => Done(false)));
         buttons.Children.Add(Gap(10));
         buttons.Children.Add(Btn(yes, null, true, () => Done(true)));
         var box = new Border
         {
-            Style = (Style)FindResource("CardBorder"), Width = 440, Padding = new Thickness(26, 22, 26, 22), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            Child = new StackPanel { Children = { new TextBlock { Text = title, Style = (Style)FindResource("H2") }, new TextBlock { Text = text, Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 10, 0, 0), FontSize = 13 }, buttons } },
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 50, ShadowDepth = 10, Opacity = 0.6 },
+            Background = (Brush)FindResource("Panel"), BorderBrush = (Brush)FindResource("Line2"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
+            Width = 440, Padding = new Thickness(26, 22, 26, 22), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            Child = new StackPanel { Children = { new TextBlock { Text = title, FontSize = 18 }, new TextBlock { Text = text, Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 10, 0, 0), FontSize = 13.5 }, buttons } },
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 10, Opacity = 0.5 },
         };
         modalHost.Children.Clear();
         modalHost.Children.Add(box);
         modalHost.Visibility = Visibility.Visible;
-        modalHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
+        modalHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
         return tcs.Task;
     }
 
@@ -365,11 +373,11 @@ public partial class MainWindow : Window
     void InitScreenPage()
     {
         BrightSlider.Value = App.Cfg.Brightness;
-        BrightText.Text = $"{App.Cfg.Brightness} %";
+        BrightText.Text = $"{App.Cfg.Brightness}%";
         BrightSlider.ValueChanged += (_, e) =>
         {
             App.Cfg.Brightness = (int)Math.Round(e.NewValue);
-            BrightText.Text = $"{App.Cfg.Brightness} %";
+            BrightText.Text = $"{App.Cfg.Brightness}%";
             App.Engine.Poke();
             App.SaveSoon();
         };
@@ -384,6 +392,7 @@ public partial class MainWindow : Window
         BlankSwitch.Unchecked += (_, _) => App.Engine.Blank = false;
         PrevTheme.Click += (_, _) => StepTheme(-1);
         NextTheme.Click += (_, _) => StepTheme(1);
+        BrowseThemes.Click += (_, _) => NavThemes.IsChecked = true;
         UpdateThemeCard();
         UpdateScreenStatus();
     }
@@ -398,8 +407,8 @@ public partial class MainWindow : Window
 
     void UpdateThemeCard()
     {
-        ThemeName.Text = App.Engine.Theme.Name;
-        ThemeDesc.Text = App.Engine.Theme.Description ?? "";
+        ThemeName.Text = T(App.Engine.Theme.Name);
+        ThemeDesc.Text = App.Engine.Theme.Description is { } d ? T(d) : "";
     }
 
     int lastStatusHash;
@@ -408,53 +417,49 @@ public partial class MainWindow : Window
     {
         var e = App.Engine;
         ConnText.Text = e.Status;
-        ConnDot.Fill = e.Connected ? OkBrush : e.Status.StartsWith("Szukam") ? DimBrush : BadBrush;
-        FpsText.Text = $"{e.Fps:0} kl./s";
-        BwText.Text = $"{e.KBps:0} KB/s · {e.KBps * 1024 / FrameDiff.Bandwidth * 100:0}%";
+        ConnDot.Fill = e.Connected ? OkBrush : e.Searching ? DimBrush : BadBrush;
+        FpsText.Text = L.F("{0:0} fps", e.Fps);
+        BwText.Text = L.F("{0:0} KB/s, {1:0}% of the link", e.KBps, e.KBps * 1024 / FrameDiff.Bandwidth * 100);
         if (BlankSwitch.IsChecked != e.Blank) BlankSwitch.IsChecked = e.Blank;
 
         var s = App.Sensors.Current;
         var pawn = Sensors.PawnIoVersion;
+        bool elevated = Sensors.Elevated || Sensors.Demo;
         double cpuT = s.Get("cpu.temp");
-        int hash = HashCode.Combine(Sensors.Elevated, pawn, double.IsNaN(cpuT), App.Sensors.LhmStatus, double.IsNaN(s.Get("gpu.temp")));
+        int hash = HashCode.Combine(elevated, pawn, double.IsNaN(cpuT), App.Sensors.LhmStatus, double.IsNaN(s.Get("gpu.temp")), L.Lang);
         if (hash == lastStatusHash) return;
         lastStatusHash = hash;
         SensorStatus.Children.Clear();
-        StatusRow("Uprawnienia administratora", Sensors.Elevated, Sensors.Elevated ? "są" : "brak");
-        StatusRow("Sterownik PawnIO", pawn != null, pawn != null ? $"v{pawn}" : "nie zainstalowany");
-        StatusRow("Temperatura CPU", !double.IsNaN(cpuT), double.IsNaN(cpuT) ? "niedostępna" : "odczyt działa");
-        StatusRow("Grafika", !double.IsNaN(s.Get("gpu.temp")), s.Str("gpu.name") ?? "brak");
-        if (!Sensors.Elevated)
+        StatusRow(T("Administrator rights"), elevated, elevated ? T("yes") : T("no"));
+        StatusRow(T("PawnIO driver"), pawn != null || Sensors.Demo, pawn != null ? pawn.ToString(3) : Sensors.Demo ? "2.2.0" : T("not installed"));
+        StatusRow(T("CPU temperature"), !double.IsNaN(cpuT), double.IsNaN(cpuT) ? T("unavailable") : T("reading"));
+        StatusRow(T("Graphics card"), !double.IsNaN(s.Get("gpu.temp")), s.Str("gpu.name") ?? T("none"));
+        if (!elevated)
         {
-            SensorStatus.Children.Add(new TextBlock { Text = "Temperatura procesora wymaga uprawnień administratora. Start z systemem robi to bez pytania.", Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 6, 0, 10) });
-            SensorStatus.Children.Add(Btn("Uruchom jako administrator", "", true, RestartElevated));
+            SensorStatus.Children.Add(new TextBlock { Text = T("CPU temperature needs administrator rights. Ember gets them on its own when it starts with Windows."), Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 8, 0, 12) });
+            SensorStatus.Children.Add(Btn(T("Restart as administrator"), null, true, RestartElevated));
         }
-        else if (pawn == null)
+        else if (pawn == null && !Sensors.Demo)
         {
-            SensorStatus.Children.Add(new TextBlock { Text = "Ryzen podaje temperaturę tylko przez sterownik. PawnIO to podpisany, bezpieczny następca starego WinRing0 (tego od bluescreenów).", Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 6, 0, 10) });
-            SensorStatus.Children.Add(Btn("Zainstaluj PawnIO", "", true, () => _ = InstallPawnIo()));
+            SensorStatus.Children.Add(new TextBlock { Text = T("Ryzen and Core CPUs only report temperature through a driver. PawnIO is the signed replacement for WinRing0."), Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 8, 0, 12) });
+            SensorStatus.Children.Add(Btn(T("Install PawnIO"), null, true, () => _ = InstallPawnIo()));
         }
     }
 
     void StatusRow(string label, bool ok, string value)
     {
-        var g = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        var g = new Grid { Margin = new Thickness(0, 0, 0, 10) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition());
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        g.Children.Add(new Ellipse2(ok ? OkBrush : BadBrush));
-        var l = new TextBlock { Text = label, Margin = new Thickness(10, 0, 0, 0), FontSize = 13 };
+        g.Children.Add(new Border { Width = 7, Height = 7, CornerRadius = new CornerRadius(3.5), Background = ok ? OkBrush : BadBrush, VerticalAlignment = VerticalAlignment.Center });
+        var l = new TextBlock { Text = label, Margin = new Thickness(11, 0, 0, 0) };
         Grid.SetColumn(l, 1);
         g.Children.Add(l);
-        var v = new TextBlock { Text = value, Foreground = SubBrush, FontSize = 12.5, MaxWidth = 140, TextTrimming = TextTrimming.CharacterEllipsis };
+        var v = new TextBlock { Text = value, Foreground = SubBrush, MaxWidth = 150, TextTrimming = TextTrimming.CharacterEllipsis };
         Grid.SetColumn(v, 2);
         g.Children.Add(v);
         SensorStatus.Children.Add(g);
-    }
-
-    sealed class Ellipse2 : Border
-    {
-        public Ellipse2(Brush b) { Width = 8; Height = 8; CornerRadius = new CornerRadius(4); Background = b; VerticalAlignment = VerticalAlignment.Center; }
     }
 
     void RestartElevated()
@@ -464,42 +469,22 @@ public partial class MainWindow : Window
             Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "--elevated --after-restart") { UseShellExecute = true, Verb = "runas" });
             App.Quit();
         }
-        catch (System.ComponentModel.Win32Exception) { Toast("Anulowano", true); }
+        catch (System.ComponentModel.Win32Exception) { Toast(T("Cancelled"), true); }
     }
 
     async Task InstallPawnIo()
     {
-        const string url = "https://github.com/namazso/PawnIO.Setup/releases/latest/download/PawnIO_setup.exe";
-        var dir = Path.Combine(Path.GetTempPath(), "Ember");
-        Directory.CreateDirectory(dir);
-        var file = Path.Combine(dir, "PawnIO_setup.exe");
-        try
+        Toast(T("Downloading the PawnIO installer…"));
+        var result = await PawnIo.Install();
+        App.Sensors.Reinit();
+        lastStatusHash = 0;
+        Toast(result switch
         {
-            Toast("Pobieram oficjalny instalator PawnIO…");
-            using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) })
-            {
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("Ember/1.0");
-                await File.WriteAllBytesAsync(file, await http.GetByteArrayAsync(url));
-            }
-            var signer = await Task.Run(() => Signature.Signer(file));
-            if (signer == null)
-            {
-                Toast("Instalator nie ma ważnego podpisu cyfrowego. Przerwano.", true);
-                Log.Warn("PawnIO setup signature invalid");
-                return;
-            }
-            Log.Info($"PawnIO setup signed by {signer}");
-            var p = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true });
-            if (p != null) await p.WaitForExitAsync();
-            App.Sensors.Reinit();
-            lastStatusHash = 0;
-            Toast(Sensors.PawnIoVersion != null ? "PawnIO zainstalowany. Czujniki uruchomione ponownie." : "Instalacja nie została dokończona.", Sensors.PawnIoVersion == null);
-        }
-        catch (Exception e)
-        {
-            Log.Error("pawnio install", e);
-            Toast("Nie udało się: " + e.Message, true);
-        }
+            PawnIo.Result.Installed => T("PawnIO installed. Sensors restarted."),
+            PawnIo.Result.NotFinished => T("PawnIO setup was closed before it finished."),
+            PawnIo.Result.BadSignature => T("The download is not signed by the PawnIO author. Nothing was run."),
+            _ => T("Could not download PawnIO. Check the connection and try again."),
+        }, result != PawnIo.Result.Installed);
     }
 
     // ---------- gallery ----------
@@ -510,7 +495,8 @@ public partial class MainWindow : Window
         public required Renderer R;
         public required SKBitmap Frame;
         public required WriteableBitmap Bmp;
-        public required Border Card;
+        public required Border Bezel;
+        public required TextBlock State;
     }
 
     readonly List<Thumb> thumbs = new();
@@ -528,9 +514,7 @@ public partial class MainWindow : Window
             using (var c = new SKCanvas(frame)) r.Render(c, snap, 0, Clock.Now);
             var bmp = new WriteableBitmap(W, H, 96, 96, PixelFormats.Pbgra32, null);
             bmp.WritePixels(new Int32Rect(0, 0, W, H), frame.GetPixels(), frame.ByteCount, frame.RowBytes);
-            var card = ThemeCard(t, bmp);
-            thumbs.Add(new Thumb { Theme = t, R = r, Frame = frame, Bmp = bmp, Card = card });
-            Gallery.Children.Add(card);
+            Gallery.Children.Add(ThemeCard(t, r, frame, bmp));
         }
         MarkActive();
     }
@@ -554,49 +538,37 @@ public partial class MainWindow : Window
         thumbs.Clear();
     }
 
-    Border ThemeCard(Theme t, WriteableBitmap bmp)
+    FrameworkElement ThemeCard(Theme t, Renderer r, SKBitmap frame, WriteableBitmap bmp)
     {
-        var img = new Image { Source = bmp, Width = 264, Height = 176, Stretch = Stretch.Fill };
+        var img = new Image { Source = bmp, Width = 276, Height = 184, Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
-        var imgBox = new Border { CornerRadius = new CornerRadius(10), Child = img, ClipToBounds = true, Background = Brushes.Black };
-        imgBox.Clip = new RectangleGeometry(new Rect(0, 0, 264, 176), 10, 10);
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-        actions.Children.Add(Btn("Edytuj", "", false, () => OpenEditor(t)));
-        actions.Children.Add(Gap());
-        actions.Children.Add(Btn("", "", false, () => DuplicateTheme(t), "Duplikuj"));
-        if (!t.BuiltIn)
+        var bezel = new Border
         {
-            actions.Children.Add(Gap());
-            actions.Children.Add(Btn("", "", false, () => _ = DeleteTheme(t), "Usuń"));
-        }
-        var badge = new Border { CornerRadius = new CornerRadius(7), Padding = new Thickness(8, 3, 8, 3), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Tag = "badge" };
-        var head = new Grid { Margin = new Thickness(2, 14, 0, 0) };
-        head.Children.Add(new TextBlock { Text = t.Name, Style = (Style)FindResource("H2") });
-        head.Children.Add(badge);
-        var sp = new StackPanel();
-        sp.Children.Add(imgBox);
-        sp.Children.Add(head);
-        sp.Children.Add(new TextBlock { Text = t.Description ?? (t.BuiltIn ? "" : "Twój motyw"), Style = (Style)FindResource("SubText"), Margin = new Thickness(2, 5, 0, 0), Height = 34, TextTrimming = TextTrimming.WordEllipsis });
-        sp.Children.Add(actions);
-        var card = new Border
-        {
-            Style = (Style)FindResource("CardBorder"), Padding = new Thickness(14), Margin = new Thickness(0, 0, 18, 18), Width = 294, Child = sp, Cursor = Cursors.Hand,
-            BorderThickness = new Thickness(1.5), Tag = t.Id, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1),
+            Background = Br("#0C0B0A"), Padding = new Thickness(9), CornerRadius = new CornerRadius(7), BorderThickness = new Thickness(1.5), BorderBrush = LineBrush,
+            Child = new Border { Background = Brushes.Black, Child = img }, Cursor = Cursors.Hand, ToolTip = T("Show on the screen"),
         };
-        card.MouseEnter += (_, _) => Lift(card, 1.015);
-        card.MouseLeave += (_, _) => Lift(card, 1);
-        imgBox.MouseLeftButtonUp += (_, _) => { App.SetTheme(t); MarkActive(); UpdateThemeCard(); Toast($"Ustawiono motyw {t.Name}"); };
-        head.MouseLeftButtonUp += (_, _) => { App.SetTheme(t); MarkActive(); UpdateThemeCard(); Toast($"Ustawiono motyw {t.Name}"); };
-        return card;
-    }
+        void Use() { App.SetTheme(t); MarkActive(); UpdateThemeCard(); Toast(L.F("{0} is on the screen", T(t.Name))); }
+        bezel.MouseLeftButtonUp += (_, _) => Use();
+        bezel.MouseEnter += (_, _) => { if (App.Engine.Theme.Id != t.Id) bezel.BorderBrush = (Brush)FindResource("Line2"); };
+        bezel.MouseLeave += (_, _) => MarkActive();
 
-    static void Lift(Border b, double s)
-    {
-        var st = (ScaleTransform)b.RenderTransform;
-        var a = new DoubleAnimation(s, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
-        st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+        var state = new TextBlock { FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+        var head = new Grid { Margin = new Thickness(2, 14, 2, 0) };
+        head.Children.Add(new TextBlock { Text = T(t.Name), Style = (Style)FindResource("H2") });
+        head.Children.Add(state);
+
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 10, 0, 0) };
+        actions.Children.Add(Link(T("Edit"), () => OpenEditor(t)));
+        actions.Children.Add(Link(T("Duplicate"), () => DuplicateTheme(t)));
+        if (!t.BuiltIn) actions.Children.Add(Link(T("Delete"), () => _ = DeleteTheme(t)));
+
+        var sp = new StackPanel { Width = 296, Margin = new Thickness(0, 0, 30, 34) };
+        sp.Children.Add(bezel);
+        sp.Children.Add(head);
+        sp.Children.Add(new TextBlock { Text = t.Description is { } d ? T(d) : T("Your theme"), Style = (Style)FindResource("SubText"), Margin = new Thickness(2, 4, 2, 0), Height = 36, TextTrimming = TextTrimming.WordEllipsis });
+        sp.Children.Add(actions);
+        thumbs.Add(new Thumb { Theme = t, R = r, Frame = frame, Bmp = bmp, Bezel = bezel, State = state });
+        return sp;
     }
 
     void MarkActive()
@@ -604,28 +576,25 @@ public partial class MainWindow : Window
         foreach (var th in thumbs)
         {
             bool active = th.Theme.Id == App.Engine.Theme.Id;
-            th.Card.BorderBrush = active ? (Brush)FindResource("AccentSolid") : (Brush)FindResource("Line");
-            th.Card.Background = active ? Br("#16130F") : (Brush)FindResource("Card");
-            var head = (Grid)((StackPanel)th.Card.Child).Children[1];
-            var badge = (Border)head.Children[1];
-            badge.Background = active ? (Brush)FindResource("Accent") : Br("#1A212C");
-            badge.Child = new TextBlock { Text = active ? "Aktywny" : th.Theme.BuiltIn ? "Wbudowany" : "Twój", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = active ? Br("#1A1208") : SubBrush };
+            th.Bezel.BorderBrush = active ? EmberBrush : LineBrush;
+            th.State.Text = active ? T("On the screen") : th.Theme.BuiltIn ? "" : T("Yours");
+            th.State.Foreground = active ? EmberBrush : DimBrush;
         }
     }
 
     void DuplicateTheme(Theme t)
     {
         var copy = t.Clone();
-        copy.Name = t.Name + " (kopia)";
+        copy.Name = L.F("{0} copy", T(t.Name));
         copy.Id = Themes.NewId(copy.Name, App.AllThemes);
         Themes.Save(copy);
         BuildGallery();
-        Toast("Zrobiono kopię. Możesz ją edytować.");
+        Toast(L.F("Saved as {0}", copy.Name));
     }
 
     async Task DeleteTheme(Theme t)
     {
-        if (!await Confirm("Usunąć motyw?", $"„{t.Name}” zniknie na dobre.", "Usuń", "Anuluj")) return;
+        if (!await Confirm(T("Delete this theme?"), L.F("{0} will be deleted from the themes folder.", t.Name), T("Delete"), T("Keep"))) return;
         Themes.Delete(t);
         if (App.Engine.Theme.Id == t.Id) App.SetTheme(Themes.LoadAll()[0]);
         BuildGallery();
@@ -634,7 +603,7 @@ public partial class MainWindow : Window
 
     void ImportTheme()
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "Motyw Ember (*.json)|*.json", Title = "Importuj motyw" };
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = T("Ember theme") + " (*.json)|*.json", Title = T("Import theme") };
         if (dlg.ShowDialog(this) != true) return;
         try
         {
@@ -642,49 +611,50 @@ public partial class MainWindow : Window
             t.Id = Themes.NewId(t.Name, App.AllThemes);
             Themes.Save(t);
             BuildGallery();
-            Toast($"Zaimportowano „{t.Name}”");
+            Toast(L.F("Imported {0}", t.Name));
         }
-        catch (Exception e) { Toast("To nie jest poprawny motyw: " + e.Message, true); }
+        catch (Exception e) { Toast(T("Not an Ember theme: ") + e.Message, true); }
     }
 
     // ---------- sensors page ----------
 
-    readonly List<(SensorInfo Info, TextBlock Value, FrameworkElement Row, TextBlock? Header)> sensorRows = new();
+    readonly List<(SensorInfo Info, TextBlock Value, FrameworkElement Row)> sensorRows = new();
+    readonly List<(TextBlock Header, StackPanel Rows)> sensorGroups = new();
 
     void BuildSensors()
     {
         SensorList.Children.Clear();
         sensorRows.Clear();
+        sensorGroups.Clear();
         var all = Sensors.Catalog.Concat(App.Sensors.Raw).ToList();
         foreach (var group in all.GroupBy(x => x.Group))
         {
-            var header = new TextBlock { Text = group.Key.ToUpperInvariant(), Style = (Style)FindResource("Cap"), Margin = new Thickness(4, 18, 0, 8) };
-            SensorList.Children.Add(header);
-            var box = new Border { Style = (Style)FindResource("CardBorder"), Padding = new Thickness(6), Margin = new Thickness(0, 0, 8, 0) };
-            var sp = new StackPanel();
-            box.Child = sp;
+            var header = new TextBlock { Text = T(group.Key), Style = (Style)FindResource("Head"), Margin = new Thickness(10, 22, 0, 6) };
+            var rows = new StackPanel();
             foreach (var info in group)
             {
-                var g = new Grid { Background = Brushes.Transparent, Cursor = Cursors.Hand };
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) });
                 g.ColumnDefinitions.Add(new ColumnDefinition());
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-                var b = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 7, 12, 7), Child = g };
-                b.MouseEnter += (_, _) => b.Background = Br("#1A212C");
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+                var b = new Border { Padding = new Thickness(10, 7, 10, 7), Child = g, Background = Brushes.Transparent, Cursor = Cursors.Hand, BorderBrush = Br("#2F2C29"), BorderThickness = new Thickness(0, 0, 0, 1) };
+                b.MouseEnter += (_, _) => b.Background = RaisedBrush;
                 b.MouseLeave += (_, _) => b.Background = Brushes.Transparent;
                 var key = info.Key;
-                b.MouseLeftButtonUp += (_, _) => { Clipboard.SetText(key); Toast($"Skopiowano {key}"); };
-                g.Children.Add(new TextBlock { Text = info.Label, TextTrimming = TextTrimming.CharacterEllipsis });
-                var k = new TextBlock { Text = info.Key, FontFamily = (FontFamily)FindResource("Mono"), FontSize = 12, Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                b.MouseLeftButtonUp += (_, _) => { Clipboard.SetText(key); Toast(L.F("Copied {0}", key)); };
+                g.Children.Add(new TextBlock { Text = T(info.Label), TextTrimming = TextTrimming.CharacterEllipsis });
+                var k = new TextBlock { Text = info.Key, FontSize = 12.5, Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 Grid.SetColumn(k, 1);
                 g.Children.Add(k);
-                var v = new TextBlock { FontFamily = (FontFamily)FindResource("Mono"), FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Right, Foreground = AmberBrush };
+                var v = new TextBlock { HorizontalAlignment = HorizontalAlignment.Right };
                 Grid.SetColumn(v, 2);
                 g.Children.Add(v);
-                sp.Children.Add(b);
-                sensorRows.Add((info, v, b, null));
+                rows.Children.Add(b);
+                sensorRows.Add((info, v, b));
             }
-            SensorList.Children.Add(box);
+            SensorList.Children.Add(header);
+            SensorList.Children.Add(rows);
+            sensorGroups.Add((header, rows));
         }
         UpdateSensors();
         FilterSensors();
@@ -696,12 +666,13 @@ public partial class MainWindow : Window
         if (App.Sensors.Raw.Length + Sensors.Catalog.Length != sensorRows.Count) { BuildSensors(); return; }
         var s = App.Sensors.Current;
         var now = DateTime.Now;
-        foreach (var (info, value, _, _) in sensorRows)
+        var cu = L.Culture;
+        foreach (var (info, value, _) in sensorRows)
         {
             string text = info.Key switch
             {
-                "time" => now.ToString("HH:mm", Renderer.Pl),
-                "date" => now.ToString("dddd, d MMMM", Renderer.Pl),
+                "time" => now.ToString("HH:mm", cu),
+                "date" => now.ToString("dddd, d MMMM", cu),
                 "time.sec" => now.Second.ToString(),
                 "time.min" => now.Minute.ToString(),
                 "time.hour" => (now.Hour % 12).ToString(),
@@ -714,81 +685,113 @@ public partial class MainWindow : Window
     static string Fmt(double v, string unit)
     {
         if (double.IsNaN(v)) return "-";
+        var cu = L.Culture;
         return unit switch
         {
             "B/s" => Renderer.Format(v, "rate"),
-            "MHz" => v.ToString("0", Renderer.Pl) + " MHz",
-            "%" or "°C" or "W" or "RPM" => v.ToString(v < 10 ? "0.0" : "0", Renderer.Pl) + " " + unit,
-            _ => v.ToString(Math.Abs(v) < 10 ? "0.00" : "0.0", Renderer.Pl) + (unit.Length > 0 ? " " + unit : ""),
+            "MHz" => v.ToString("0", cu) + " MHz",
+            "%" or "°C" or "W" or "RPM" => v.ToString(v < 10 ? "0.0" : "0", cu) + " " + unit,
+            _ => v.ToString(Math.Abs(v) < 10 ? "0.00" : "0.0", cu) + (unit.Length > 0 ? " " + unit : ""),
         };
     }
 
     void FilterSensors()
     {
         var q = SensorSearch.Text.Trim();
-        foreach (var (info, _, row, _) in sensorRows)
-            row.Visibility = q.Length == 0 || info.Label.Contains(q, StringComparison.OrdinalIgnoreCase) || info.Key.Contains(q, StringComparison.OrdinalIgnoreCase) || info.Group.Contains(q, StringComparison.OrdinalIgnoreCase)
+        foreach (var (info, _, row) in sensorRows)
+            row.Visibility = q.Length == 0 || T(info.Label).Contains(q, StringComparison.OrdinalIgnoreCase) || info.Key.Contains(q, StringComparison.OrdinalIgnoreCase) || T(info.Group).Contains(q, StringComparison.OrdinalIgnoreCase)
                 ? Visibility.Visible : Visibility.Collapsed;
-        // Hide group cards whose rows are all filtered out.
-        for (int i = 0; i + 1 < SensorList.Children.Count; i += 2)
-        {
-            var box = (Border)SensorList.Children[i + 1];
-            bool any = ((StackPanel)box.Child).Children.Cast<UIElement>().Any(c => c.Visibility == Visibility.Visible);
-            box.Visibility = SensorList.Children[i].Visibility = any ? Visibility.Visible : Visibility.Collapsed;
-        }
+        foreach (var (header, rows) in sensorGroups)
+            header.Visibility = rows.Visibility = rows.Children.Cast<UIElement>().Any(c => c.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ---------- settings page ----------
+
+    void Section(string title) => SettingsPanel.Children.Add(new TextBlock { Text = title, FontSize = 18, Margin = new Thickness(0, 30, 0, 10) });
+
+    /// Label (and an optional line of explanation) on the left, the control on the right.
+    void Row(string label, string? hint, FrameworkElement control)
+    {
+        var g = new Grid { Margin = new Thickness(0, 0, 0, 0), MinHeight = 46 };
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 8, 24, 8) };
+        left.Children.Add(new TextBlock { Text = label });
+        if (hint != null) left.Children.Add(new TextBlock { Text = hint, Style = (Style)FindResource("SubText"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
+        g.Children.Add(left);
+        control.VerticalAlignment = VerticalAlignment.Center;
+        control.Margin = new Thickness(0);
+        if (control is ComboBox) control.Width = 280;
+        Grid.SetColumn(control, 1);
+        g.Children.Add(control);
+        SettingsPanel.Children.Add(new Border { Child = g, BorderBrush = Br("#2F2C29"), BorderThickness = new Thickness(0, 0, 0, 1) });
+    }
+
+    static CheckBox Toggle(bool value, Action<bool> changed, Style style)
+    {
+        var cb = new CheckBox { Style = style, IsChecked = value };
+        cb.Checked += (_, _) => changed(true);
+        cb.Unchecked += (_, _) => changed(false);
+        return cb;
+    }
 
     void BuildSettings()
     {
         SettingsPanel.Children.Clear();
         var cfg = App.Cfg;
+        var sw = (Style)FindResource("Switch");
 
-        var ports = new List<(string, string)> { ("auto", "Automatycznie") };
+        Section(T("Screen"));
+        var ports = new List<(string, string)> { ("auto", T("Automatic")) };
         var found = TuringLcd.FindPorts();
-        foreach (var p in TuringLcd.SerialPortNames()) ports.Add((p, found.Contains(p) ? $"{p} · ekran Turing" : p));
-        var conn = Card("Połączenie", 420,
-            Caption("PORT", 0),
-            Combo(ports, cfg.Port, v => { cfg.Port = v; cfg.Save(); App.Engine.Reconnect(); }),
-            Caption("PŁYNNOŚĆ (MAKS. KLATEK NA SEKUNDĘ)"),
-            Chips(new[] { (15, "15"), (24, "24"), (30, "30"), (45, "45"), (60, "60") }, cfg.Fps, v => { cfg.Fps = v; cfg.Save(); }),
-            new TextBlock { Text = "Ekran przyjmuje ok. 157 KB/s. Ember wysyła tylko zmienione piksele, więc drobne animacje są płynne, a pełne przerysowanie trwa ok. 2 s.", Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 4, 0, 14) },
-            new WrapPanel { Children = { Btn("Odśwież obraz", "", false, () => { App.Engine.Redraw(); Toast("Przerysowuję ekran"); }), Gap(), Btn("Połącz ponownie", "", false, () => App.Engine.Reconnect()) }, Margin = new Thickness(0, 0, 0, 12) });
+        foreach (var p in TuringLcd.SerialPortNames()) ports.Add((p, found.Contains(p) ? L.F("{0} (Turing screen)", p) : p));
+        Row(T("Port"), null, Combo(ports, cfg.Port, v => { cfg.Port = v; cfg.Save(); App.Engine.Reconnect(); }));
+        Row(T("Frame rate limit"), T("Small animations reach this. Large changes take longer, the USB link moves about 157 KB/s."),
+            Chips(new[] { (15, "15"), (24, "24"), (30, "30"), (45, "45"), (60, "60") }, cfg.Fps, v => { cfg.Fps = v; cfg.Save(); }));
+        Row(T("Intro when Ember starts"), T("Logo, version and link on the screen for a few seconds."), Toggle(cfg.Intro, v => { cfg.Intro = v; cfg.Save(); }, sw));
+        Row(T("Connection"), null, new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { Btn(T("Redraw"), null, false, () => { App.Engine.Redraw(); Toast(T("Redrawing the screen")); }), Gap(), Btn(T("Reconnect"), null, false, () => App.Engine.Reconnect()) },
+        });
 
-        var gpus = new List<(string, string)> { ("auto", "Automatycznie (dedykowana)") };
+        Section(T("Sensors"));
+        Row(T("Refresh"), null, Chips(new[] { (500, L.F("{0} s", 0.5)), (1000, "1 s"), (2000, "2 s") }, cfg.Interval, v => { cfg.Interval = v; cfg.Save(); }));
+        var gpus = new List<(string, string)> { ("auto", T("Automatic (dedicated card)")) };
         foreach (var (id, name) in Sensors.GpuChoices(App.Sensors.Current)) gpus.Add((id, name));
-        var nets = new List<(string, string)> { ("auto", "Automatycznie (najbardziej używana)") };
+        Row(T("Graphics card"), null, Combo(gpus, cfg.Gpu, v => { cfg.Gpu = v; cfg.Save(); }));
+        var nets = new List<(string, string)> { ("auto", T("Automatic (busiest)")) };
         foreach (var n in Sensors.NetworkNames()) nets.Add((n, n));
-        var sens = Card("Czujniki", 420,
-            Caption("ODŚWIEŻANIE", 0),
-            Chips(new[] { (500, "0,5 s"), (1000, "1 s"), (2000, "2 s") }, cfg.Interval, v => { cfg.Interval = v; cfg.Save(); }),
-            Caption("KARTA GRAFICZNA"),
-            Combo(gpus, cfg.Gpu, v => { cfg.Gpu = v; cfg.Save(); }),
-            Caption("KARTA SIECIOWA"),
-            Combo(nets, cfg.Net, v => { cfg.Net = v; cfg.Save(); }),
-            Caption("ZAAWANSOWANE"),
-            Switch("Czujniki płyty głównej", "Wentylatory i temperatury z chipu Super I/O. Eksperymentalne: zostaw wyłączone, jeśli nie potrzebujesz.", cfg.Motherboard,
-                v => { cfg.Motherboard = v; cfg.Save(); App.Sensors.Reinit(); }));
+        Row(T("Network adapter"), null, Combo(nets, cfg.Net, v => { cfg.Net = v; cfg.Save(); }));
+        Row(T("Motherboard sensors"), T("Fans and temperatures from the Super I/O chip. Experimental, leave off unless you need them."),
+            Toggle(cfg.Motherboard, v => { cfg.Motherboard = v; cfg.Save(); App.Sensors.Reinit(); }, sw));
 
+        Section(T("Startup"));
         bool elevated = Sensors.Elevated;
-        var autostart = Switch("Uruchamiaj z Windows", elevated ? "Zadanie w Harmonogramie zadań, startuje z uprawnieniami do czujników, bez pytania UAC." : "Wymaga uruchomienia Ember jako administrator.",
-            elevated && Autostart.Exists(), v =>
-            {
-                bool ok = v ? Autostart.Enable() : Autostart.Disable();
-                if (ok) { App.Cfg.Autostart = v; App.Cfg.Save(); }
-                Toast(ok ? (v ? "Ember wystartuje razem z Windows" : "Autostart wyłączony") : "Nie udało się zmienić autostartu", !ok);
-            });
+        var autostart = Toggle(elevated && Autostart.Exists(), v =>
+        {
+            bool ok = v ? Autostart.Enable() : Autostart.Disable();
+            if (ok) { App.Cfg.Autostart = v; App.Cfg.Save(); }
+            Toast(ok ? (v ? T("Ember will start with Windows") : T("Ember will not start with Windows")) : T("Could not change the startup task"), !ok);
+        }, sw);
         autostart.IsEnabled = elevated;
-        var sys = Card("System", 420, autostart,
-            elevated ? new Border() : Btn("Uruchom jako administrator", "", true, RestartElevated),
-            Caption("STAN"),
-            new TextBlock { Text = $"Uprawnienia administratora: {(elevated ? "tak" : "nie")}\nPawnIO: {Sensors.PawnIoVersion?.ToString() ?? "brak"}\nLibreHardwareMonitor: {App.Sensors.LhmStatus}", Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 0, 0, 12), LineHeight = 20 });
+        Row(T("Start with Windows"), elevated ? T("Runs from Task Scheduler with sensor access, no UAC prompt.") : T("Needs Ember running as administrator."), autostart);
+        if (!elevated) Row(T("Administrator rights"), null, Btn(T("Restart as administrator"), null, false, RestartElevated));
 
-        var about = Card("O programie", 420,
-            new TextBlock { Text = $"Ember {typeof(App).Assembly.GetName().Version!.ToString(3)}. Sterownik ekranu Turing Smart Screen 3.5\" (rev. A).", Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 0, 0, 12) },
-            new WrapPanel { Children = { Btn("Logi", "", false, () => App.OpenFolder(App.DataDir)), Gap(), Btn("Motywy", "", false, () => App.OpenFolder(Themes.UserDir)), Gap(), Btn("Zakończ Ember", "", false, App.Quit) }, Margin = new Thickness(0, 0, 0, 12) });
+        Section(T("Language"));
+        Row(T("Interface and built-in themes"), null, Chips(new[] { ("en", "English"), ("pl", "Polski") }, L.Lang, v =>
+        {
+            cfg.Language = v;
+            cfg.Save();
+            App.ApplyLanguage();
+        }));
 
-        foreach (var c in new[] { conn, sens, sys, about }) SettingsPanel.Children.Add(c);
+        Section(T("About"));
+        var version = typeof(App).Assembly.GetName().Version!.ToString(3);
+        Row(L.F("Ember {0}", version), T("For the Turing Smart Screen 3.5\" (revision A)."), new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { Btn("GitHub", null, false, () => App.OpenUrl(App.RepoUrl)), Gap(), Btn(T("Log"), null, false, () => App.OpenFolder(App.DataDir)), Gap(), Btn(T("Quit Ember"), null, false, App.Quit) },
+        });
     }
 }

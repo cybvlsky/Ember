@@ -50,7 +50,7 @@ public sealed class TuringLcd : IDisposable
         if (handle.IsInvalid)
         {
             int err = Marshal.GetLastWin32Error();
-            throw new IOException(err == 5 ? $"{port} jest zajęty przez inny program" : $"Nie można otworzyć {port} (błąd {err})");
+            throw new IOException(err == 5 ? L.F("{0} is in use by another program", port) : L.F("Cannot open {0} (error {1})", port, err));
         }
         try
         {
@@ -122,15 +122,15 @@ public sealed class TuringLcd : IDisposable
 
     unsafe void Write(ReadOnlySpan<byte> data)
     {
-        var handle = h ?? throw new IOException("Port zamknięty");
+        var handle = h ?? throw new IOException(L.T("Port closed"));
         while (data.Length > 0)
         {
             int n = Math.Min(data.Length, Chunk);
             bool ok;
             int done;
             fixed (byte* p = data) ok = WriteFile(handle, p, n, out done, IntPtr.Zero);
-            if (!ok) throw new IOException($"Zapis do {Port} nieudany (błąd {Marshal.GetLastWin32Error()})");
-            if (done != n) throw new TimeoutException($"Ekran przestał odbierać dane ({done}/{n} B)");
+            if (!ok) throw new IOException(L.F("Writing to {0} failed (error {1})", Port, Marshal.GetLastWin32Error()));
+            if (done != n) throw new TimeoutException(L.F("The screen stopped taking data ({0}/{1} B)", done, n));
             data = data[n..];
         }
     }

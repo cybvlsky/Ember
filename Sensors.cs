@@ -76,21 +76,21 @@ public sealed class Sensors : IDisposable
     /// Friendly keys the built-in themes use. Raw LHM sensors are also exposed as "lhm:/identifier".
     public static readonly SensorInfo[] Catalog =
     [
-        new("cpu.load", "Obciążenie", "%", "CPU"), new("cpu.temp", "Temperatura", "°C", "CPU"), new("cpu.clock", "Taktowanie", "MHz", "CPU"),
-        new("cpu.power", "Pobór mocy", "W", "CPU"), new("cpu.loadmax", "Najbardziej obciążony wątek", "%", "CPU"), new("cpu.t1", "Wątek 1 (cpu.t1 … cpu.tN)", "%", "CPU"),
-        new("cpu.name", "Nazwa", "", "CPU"),
-        new("gpu.load", "Obciążenie", "%", "GPU"), new("gpu.temp", "Temperatura", "°C", "GPU"), new("gpu.hotspot", "Hot spot", "°C", "GPU"),
-        new("gpu.memtemp", "Temperatura pamięci", "°C", "GPU"), new("gpu.clock", "Taktowanie", "MHz", "GPU"), new("gpu.memclock", "Taktowanie pamięci", "MHz", "GPU"),
-        new("gpu.power", "Pobór mocy", "W", "GPU"), new("gpu.fan", "Wentylator", "RPM", "GPU"), new("gpu.fanpct", "Wentylator", "%", "GPU"),
-        new("gpu.vram", "VRAM zajęte", "%", "GPU"), new("gpu.vram.used", "VRAM zajęte", "GB", "GPU"), new("gpu.vram.total", "VRAM razem", "GB", "GPU"),
-        new("gpu.name", "Nazwa", "", "GPU"),
-        new("ram.load", "Zajęte", "%", "RAM"), new("ram.used", "Zajęte", "GB", "RAM"), new("ram.free", "Wolne", "GB", "RAM"), new("ram.total", "Razem", "GB", "RAM"),
-        new("net.down", "Pobieranie", "B/s", "Sieć"), new("net.up", "Wysyłanie", "B/s", "Sieć"), new("net.name", "Karta", "", "Sieć"),
-        new("disk.used", "Dysk systemowy zajęty", "%", "Dysk"), new("disk.free", "Dysk systemowy wolne", "GB", "Dysk"), new("disk.total", "Dysk systemowy razem", "GB", "Dysk"),
-        new("disk.temp", "Temperatura dysku", "°C", "Dysk"), new("disk.name", "Nazwa dysku", "", "Dysk"),
-        new("time", "Godzina  {time:HH:mm}", "", "Czas"), new("date", "Data  {date:dddd, d MMMM}", "", "Czas"),
-        new("time.sec", "Sekundy (płynnie)", "s", "Czas"), new("time.min", "Minuty (płynnie)", "min", "Czas"), new("time.hour", "Godziny (płynnie, 12 h)", "h", "Czas"),
-        new("sys.uptime", "Czas pracy", "", "System"),
+        new("cpu.load", "Load", "%", "CPU"), new("cpu.temp", "Temperature", "°C", "CPU"), new("cpu.clock", "Clock speed", "MHz", "CPU"),
+        new("cpu.power", "Power draw", "W", "CPU"), new("cpu.loadmax", "Busiest thread", "%", "CPU"), new("cpu.t1", "Thread 1 (cpu.t1 to cpu.tN)", "%", "CPU"),
+        new("cpu.name", "Name", "", "CPU"),
+        new("gpu.load", "Load", "%", "GPU"), new("gpu.temp", "Temperature", "°C", "GPU"), new("gpu.hotspot", "Hot spot", "°C", "GPU"),
+        new("gpu.memtemp", "Memory temperature", "°C", "GPU"), new("gpu.clock", "Clock speed", "MHz", "GPU"), new("gpu.memclock", "Memory clock", "MHz", "GPU"),
+        new("gpu.power", "Power draw", "W", "GPU"), new("gpu.fan", "Fan", "RPM", "GPU"), new("gpu.fanpct", "Fan", "%", "GPU"),
+        new("gpu.vram", "VRAM used", "%", "GPU"), new("gpu.vram.used", "VRAM used", "GB", "GPU"), new("gpu.vram.total", "VRAM total", "GB", "GPU"),
+        new("gpu.name", "Name", "", "GPU"),
+        new("ram.load", "Used", "%", "RAM"), new("ram.used", "Used", "GB", "RAM"), new("ram.free", "Free", "GB", "RAM"), new("ram.total", "Total", "GB", "RAM"),
+        new("net.down", "Download", "B/s", "Network"), new("net.up", "Upload", "B/s", "Network"), new("net.name", "Adapter", "", "Network"),
+        new("disk.used", "System drive used", "%", "Disk"), new("disk.free", "System drive free", "GB", "Disk"), new("disk.total", "System drive total", "GB", "Disk"),
+        new("disk.temp", "Drive temperature", "°C", "Disk"), new("disk.name", "Drive name", "", "Disk"),
+        new("time", "Time  {time:HH:mm}", "", "Time"), new("date", "Date  {date:dddd, d MMMM}", "", "Time"),
+        new("time.sec", "Seconds (smooth)", "s", "Time"), new("time.min", "Minutes (smooth)", "min", "Time"), new("time.hour", "Hours (smooth, 12 h)", "h", "Time"),
+        new("sys.uptime", "Uptime", "", "System"),
     ];
 
     public static readonly string[] HistoryKeys =
@@ -101,7 +101,9 @@ public sealed class Sensors : IDisposable
 
     public volatile Snapshot Current = Snapshot.Empty;
     public volatile SensorInfo[] Raw = [];
-    public volatile string LhmStatus = "uruchamianie…";
+    public volatile string LhmStatus = "starting";
+    /// `--demo`: plausible fake readings instead of hardware, for screenshots.
+    public static bool Demo;
     public static readonly bool Elevated = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
 
     readonly Settings cfg;
@@ -154,6 +156,7 @@ public sealed class Sensors : IDisposable
         while (!stop)
         {
             double t0 = Clock.Now;
+            if (Demo) { Current = Snapshot.Demo(t0); wake.WaitOne(1000); continue; }
             try
             {
                 if ((pc == null && t0 >= lhmRetryAt) || reinit) OpenLhm();
@@ -182,13 +185,13 @@ public sealed class Sensors : IDisposable
             if (PcieHook is { } pcie) pcie.SetValue(null, null); else Log.Info("LHM: PCIe throughput hook not found");
             gpuInUse = null;
             pc = c;
-            LhmStatus = Elevated ? "działa" : "działa bez uprawnień administratora";
+            LhmStatus = Elevated ? "running" : "running without administrator rights";
             Log.Info($"LHM open: {string.Join(", ", c.Hardware.Select(h => h.Name))}");
         }
         catch (Exception e)
         {
             Log.Error("LHM open", e);
-            LhmStatus = "błąd: " + e.Message;
+            LhmStatus = "error: " + e.Message;
             lhmRetryAt = Clock.Now + 60;
         }
     }

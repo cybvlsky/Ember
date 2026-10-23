@@ -1,0 +1,65 @@
+# Push a tag like v1.2.0 to publish a release: builds the self-contained app, runs the self-test,
+# compiles the installer and attaches it to a GitHub release whose notes are that version's CHANGELOG.md section.
+# Run it by hand (Actions > Release > Run workflow) to get the installer as a build artifact without releasing.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Version
+        shell: pwsh
+        run: |
+          $v = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { ([xml](Get-Content Ember.csproj)).Project.PropertyGroup.Version | Select-Object -First 1 }
+          "VERSION=$v" >> $env:GITHUB_ENV
+          Write-Host "Building $v"
+
+      - name: Publish
+        run: dotnet publish Ember.csproj -c Release -r win-x64 --self-contained true -p:Version=${{ env.VERSION }} -o publish
+
+      - name: Self-test
+        shell: pwsh
+        run: |
+          $p = Start-Process publish\Ember.exe -ArgumentList '--selftest' -Wait -PassThru
+          Get-Content "$env:APPDATA\Ember\selftest.txt"
+          if ($p.ExitCode -ne 0) { throw "self-test failed ($($p.ExitCode))" }
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc /DVersion=$env:VERSION /DSource=..\publish installer\Ember.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ember-Setup-${{ env.VERSION }}
+          path: dist/Ember-Setup-${{ env.VERSION }}.exe
+
+      - name: Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $log = Get-Content CHANGELOG.md -Raw
+          $m = [regex]::Match($log, "(?ms)^## \[?$([regex]::Escape($env:VERSION))\]?[^\n]*\n(.*?)(?=^## |\z)")
+          if (-not $m.Success) { throw "CHANGELOG.md has no section for $env:VERSION" }
+          $notes = $m.Groups[1].Value.Trim() + "`n`n**Install:** download ``Ember-Setup-$env:VERSION.exe`` below and run it. Windows 10 or 11, 64-bit."
+          Set-Content notes.md $notes -Encoding utf8
+          gh release create $env:GITHUB_REF_NAME "dist\Ember-Setup-$env:VERSION.exe" --title "Ember $env:VERSION" --notes-file notes.md
