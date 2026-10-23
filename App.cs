@@ -564,15 +564,6 @@ public static class Icons
 {
     static SKColor C(uint rgb) => new((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
 
-    static SKPath Poly(float s, bool close, params float[] xy)
-    {
-        var p = new SKPath();
-        p.MoveTo(xy[0] * s / 100, xy[1] * s / 100);
-        for (int i = 2; i < xy.Length; i += 2) p.LineTo(xy[i] * s / 100, xy[i + 1] * s / 100);
-        if (close) p.Close();
-        return p;
-    }
-
     /// `glow` adds the soft halo; leave it off where the background is unknown (the exe icon).
     public static SKBitmap Logo(int size, bool glow = false)
     {
@@ -583,56 +574,32 @@ public static class Icons
         return bmp;
     }
 
-    /// Up to 32 px the hairline, bevel and bloom would be mush, so small sizes get fat seams and a lighter crust.
+    /// An amber tile with an E whose middle arm throws off a spark. Up to 32 px every edge is snapped to whole
+    /// pixels so the tray icon stays crisp.
     public static void Draw(SKCanvas c, float s, bool glow)
     {
         bool small = s <= 32;
-        using var raw = Poly(s, true, 22, 16, 58, 7, 88, 22, 93, 58, 74, 88, 34, 93, 9, 70, 8, 36);
-        using var corner = SKPathEffect.CreateCorner(s * (small ? .12f : .08f));
-        using var rounder = new SKPaint { PathEffect = corner };
-        using var stone = new SKPath();
-        rounder.GetFillPath(raw, stone);
-        using var cracks = Poly(s, false, 2, 53, 21, 49, 38, 57, 61, 41, 98, 46);
-        using (var branch = Poly(s, false, 38, 57, 43, 76, 51, 98)) cracks.AddPath(branch);
-        float sw = s * (small ? .13f : .055f);
-        using var seamPaint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw, StrokeJoin = SKStrokeJoin.Miter };
-        using var seam = new SKPath();
-        seamPaint.GetFillPath(cracks, seam);
-
+        float P(float f) => small ? MathF.Round(f * s) : f * s;
         if (glow)
         {
-            using var halo = new SKPaint { IsAntialias = true, Color = C(0xFF5A1F).WithAlpha(90), MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .07f) };
-            c.DrawPath(stone, halo);
+            using var halo = new SKPaint { IsAntialias = true, Color = C(0xFF7A3D).WithAlpha(70), MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .08f) };
+            c.DrawRoundRect(new SKRect(s * .06f, s * .1f, s * .94f, s * .98f), s * .24f, s * .24f, halo);
         }
-        c.Save();
-        c.ClipPath(stone, antialias: true);
-        // The hot inside shows through the seams; the crust plates sit on top of it.
-        using var hot = new SKPaint { IsAntialias = true, Shader = SKShader.CreateRadialGradient(new SKPoint(s * .42f, s * .58f), s * .55f,
-            new[] { C(0xFFF4CF), C(0xFFC23A), C(0xFF6A1F), C(0xC9300F) }, new[] { 0, .22f, .55f, 1 }, SKShaderTileMode.Clamp) };
-        c.DrawRect(0, 0, s, s, hot);
-        using var plates = stone.Op(seam, SKPathOp.Difference);
-        using var crust = new SKPaint { IsAntialias = true, Shader = SKShader.CreateLinearGradient(new SKPoint(s * .2f, s * .05f), new SKPoint(s * .75f, s * .95f),
-            small ? new[] { C(0x4A3730), C(0x2A1D19) } : new[] { C(0x3D2E29), C(0x1B1311) }, (float[]?)null, SKShaderTileMode.Clamp) };
-        c.DrawPath(plates, crust);
-        if (!small)
+        using var tile = new SKPaint { IsAntialias = true, Shader = SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(s, s), new[] { C(0xFFC53D), C(0xFF6A3D) }, (float[]?)null, SKShaderTileMode.Clamp) };
+        c.DrawRoundRect(new SKRect(0, 0, s, s), s * .24f, s * .24f, tile);
+        using var ink = new SKPaint { IsAntialias = !small, Color = C(0x1A1208) };
+        void Bar(float x0, float y0, float x1, float y1)
         {
-            // Heat bleeding onto the plate edges, a cooling hairline, a lit top edge, the white-hot core, the glow from below.
-            using var bleed = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw * 2.6f, Color = C(0xFF6A1F).WithAlpha(150), MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .03f), BlendMode = SKBlendMode.Screen };
-            c.DrawPath(cracks, bleed);
-            using var hair = Poly(s, false, 61, 41, 64, 30, 71, 21);
-            using var hp = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw * .45f, StrokeCap = SKStrokeCap.Round,
-                Shader = SKShader.CreateLinearGradient(new SKPoint(s * .61f, s * .41f), new SKPoint(s * .71f, s * .21f), new[] { C(0xFFB347), C(0xFF6A1F).WithAlpha(0) }, (float[]?)null, SKShaderTileMode.Clamp) };
-            c.DrawPath(hair, hp);
-            using var lit = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = s * .012f,
-                Shader = SKShader.CreateLinearGradient(new SKPoint(s * .1f, s * .1f), new SKPoint(s * .5f, s * .5f), new[] { SKColors.White.WithAlpha(60), SKColors.White.WithAlpha(0) }, (float[]?)null, SKShaderTileMode.Clamp) };
-            c.DrawPath(stone, lit);
-            using var core = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = sw * .38f, Color = C(0xFFF1C2).WithAlpha(230), StrokeJoin = SKStrokeJoin.Round };
-            c.DrawPath(cracks, core);
-            using var rim = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = s * .05f, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .02f),
-                Shader = SKShader.CreateLinearGradient(new SKPoint(0, s * .55f), new SKPoint(0, s), new[] { C(0xFF6A1F).WithAlpha(0), C(0xFF6A1F).WithAlpha(200) }, (float[]?)null, SKShaderTileMode.Clamp) };
-            c.DrawPath(stone, rim);
+            var r = new SKRect(P(x0), P(y0), P(x1), P(y1));
+            float k = small ? 0 : r.Height * .18f;
+            c.DrawRoundRect(r, k, k, ink);
         }
-        c.Restore();
+        Bar(.28f, .24f, .40f, .76f);
+        Bar(.28f, .24f, .70f, .355f);
+        Bar(.28f, .445f, .58f, .555f);
+        Bar(.28f, .645f, .70f, .76f);
+        ink.IsAntialias = true;
+        c.DrawCircle(s * .76f, small ? (P(.445f) + P(.555f)) / 2 : s * .5f, s * (small ? .075f : .065f), ink);
     }
 
     /// The card the panel shows for a few seconds when Ember starts.
@@ -646,8 +613,8 @@ public static class Icons
             new[] { C(0xFF5A1F).WithAlpha(40), C(0xFF5A1F).WithAlpha(0) }, (float[]?)null, SKShaderTileMode.Clamp) })
             c.DrawRect(0, 0, w, h, warm);
         c.Save();
-        c.Translate(w / 2f - 50, 38);
-        Draw(c, 100, true);
+        c.Translate(w / 2f - 46, 44);
+        Draw(c, 92, true);
         c.Restore();
         using var bold = SKTypeface.FromFamilyName("Bahnschrift", new SKFontStyle(600, 5, SKFontStyleSlant.Upright)) ?? SKTypeface.Default;
         using var regular = SKTypeface.FromFamilyName("Bahnschrift", SKFontStyle.Normal) ?? SKTypeface.Default;

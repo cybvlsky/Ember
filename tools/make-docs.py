@@ -17,7 +17,7 @@ subprocess.run([exe, "--render", os.path.join(tmp, "render")], check=True)
 subprocess.run([exe, "--no-elevate", "--demo", "--language", "en", "--screenshots", os.path.join(tmp, "shots")], check=True)
 render, shots = os.path.join(tmp, "render"), os.path.join(tmp, "shots")
 
-BG_TOP, BG_BOTTOM = (36, 33, 31), (27, 25, 23)
+BG_TOP, BG_BOTTOM = (18, 24, 33), (11, 14, 19)
 THEMES = ["ember", "aurora", "clock", "cores", "latte", "mono", "neon", "terminal"]
 
 
@@ -39,11 +39,11 @@ def rounded(size, radius):
 def device(scale):
     """The panel's black bezel, as drawn on Ember's Screen page."""
     w, h, pad = round(540 * scale), round(380 * scale), round(30 * scale)
-    body = gradient(w, h, (25, 23, 22), (12, 11, 10)).convert("RGBA")
+    body = gradient(w, h, (10, 13, 18), (6, 8, 11)).convert("RGBA")
     # A hairline edge, lit from above like the real glass.
     edge_mask = Image.new("L", (w, h), 0)
     ImageDraw.Draw(edge_mask).rounded_rectangle([0, 0, w - 1, h - 1], round(12 * scale), outline=255, width=max(1, round(scale / 2)))
-    edge = gradient(w, h, (88, 82, 77), (22, 20, 19)).convert("RGBA")
+    edge = gradient(w, h, (44, 54, 70), (24, 30, 40)).convert("RGBA")
     edge.putalpha(edge_mask)
     body.alpha_composite(edge)
     body.putalpha(rounded((w, h), round(12 * scale)))
@@ -92,10 +92,9 @@ social.paste(dev, (1280 - dev.width + 40, 20))
 logo = Image.open(os.path.join(render, "logo-512.png")).resize((120, 120), Image.LANCZOS)
 social.alpha_composite(logo, (70, 170))
 d = ImageDraw.Draw(social)
-bold = ImageFont.truetype("bahnschrift.ttf", 84)
-bold.set_variation_by_name("SemiBold")
-reg = ImageFont.truetype("bahnschrift.ttf", 30)
-d.text((70, 300), "ember", font=bold, fill=(238, 232, 226))
+bold = ImageFont.truetype(os.path.join(root, "fonts", "Inter-Bold.ttf"), 80)
+reg = ImageFont.truetype(os.path.join(root, "fonts", "Inter-Regular.ttf"), 28)
+d.text((66, 306), "Ember", font=bold, fill=(232, 236, 242))
 d.text((74, 410), "for the Turing Smart Screen 3.5\"", font=reg, fill=(166, 157, 148))
 d.text((74, 450), "github.com/cybvlsky/Ember", font=reg, fill=(117, 109, 102))
 social.convert("RGB").save(os.path.join(docs, "social.png"), optimize=True)
@@ -104,7 +103,7 @@ social.convert("RGB").save(os.path.join(docs, "social.png"), optimize=True)
 for t in THEMES:
     img = frame_at(os.path.join(render, t + ".png"), size)
     pad = 18
-    out = Image.new("RGBA", (size[0] + 2 * pad, size[1] + 2 * pad), (12, 11, 10, 255))
+    out = Image.new("RGBA", (size[0] + 2 * pad, size[1] + 2 * pad), (6, 8, 11, 255))
     out.paste(img, (pad, pad))
     out.putalpha(rounded(out.size, 16))
     out.save(os.path.join(docs, "themes", t + ".png"), optimize=True)
