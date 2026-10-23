@@ -80,9 +80,6 @@ Ember never redraws the whole screen. Each frame is rendered in memory with Skia
 
 On the right, pink marks every pixel that crossed the link during ten seconds of the Ember theme. That is about 88 KB/s, 57% of what the link carries, and the reason the small animations reach 20 to 30 fps.
 
-The same budget shapes the start-up card and theme changes. Fading pixels would take seconds, but the backlight is a 6-byte command, so Ember draws each new picture with the backlight off and fades the backlight up.
-
-<p align="center"><img src="docs/intro.png" width="480" alt="The start-up card Ember shows on the panel: the logo, the version and the project link"></p>
 
 ## Sensors
 
