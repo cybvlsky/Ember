@@ -171,6 +171,7 @@ GitHub Actions builds every release from a tag. Add a `## x.y.z` section to [CHA
 - [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL 2.0) reads the sensors.
 - [PawnIO](https://github.com/namazso/PawnIO.Setup) by namazso gives it safe access to the CPU.
 - [SkiaSharp](https://github.com/mono/SkiaSharp) (MIT) draws everything.
+- [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL OFL 1.1) is the interface font.
 - [turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python) by mathoudebine documented the panel's protocol.
 
 Ember is not affiliated with Turing or TURZX.
