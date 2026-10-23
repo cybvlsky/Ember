@@ -15,6 +15,7 @@ AppName=Ember
 AppVersion={#Version}
 AppVerName=Ember {#Version}
 AppPublisher=cybvlsky
+AppCopyright=Copyright (c) 2026 cybvlsky
 AppPublisherURL=https://github.com/cybvlsky/Ember
 AppSupportURL=https://github.com/cybvlsky/Ember/issues
 AppUpdatesURL=https://github.com/cybvlsky/Ember/releases
