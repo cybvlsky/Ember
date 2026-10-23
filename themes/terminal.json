@@ -1,0 +1,48 @@
+{
+  "name": "Terminal",
+  "description": "Zielony fosfor i oscyloskopy. Dla tych, co wolą konsolę.",
+  "font": "JetBrains Mono",
+  "bg": "#030A05",
+  "palette": {
+    "text": "#B6FFD0", "sub": "#5FBF85", "dim": "#2C6A45", "line": "#0F3320", "track": "#0C2416",
+    "a1": "#3DFF8A", "a2": "#19C463", "warn": "#F5D547", "crit": "#FF5F56"
+  },
+  "widgets": [
+    { "type": "glow", "name": "Poświata", "x": -60, "y": -80, "w": 600, "h": 480, "color": "a1/6" },
+
+    { "type": "text", "name": "Prompt", "x": 12, "y": 12, "text": "ember@pc:~$ watch -n1 sensors", "size": 11, "color": "sub" },
+    { "type": "text", "name": "Zegar", "x": 468, "y": 12, "align": "right", "text": "{time:HH:mm:ss}", "size": 11, "color": "a1" },
+    { "type": "rect", "name": "Linia", "x": 12, "y": 30, "w": 456, "h": 1, "color": "line" },
+
+    { "type": "rect", "name": "Ramka CPU", "x": 12, "y": 40, "w": 222, "h": 112, "radius": 3, "stroke": "line" },
+    { "type": "text", "name": "CPU tytuł", "x": 22, "y": 49, "text": "[ cpu ]", "size": 11, "weight": 700, "color": "a1" },
+    { "type": "text", "name": "CPU wartości", "x": 224, "y": 49, "align": "right", "text": "{cpu.load:0}%  {cpu.temp:0}°C", "size": 11, "sensor": "cpu.temp", "warn": 80, "crit": 90 },
+    { "type": "graph", "name": "CPU oscyloskop", "x": 20, "y": 64, "w": 206, "h": 80, "sensor": "cpu.load", "min": 0, "max": 100, "points": 104, "thickness": 1.6, "color": "a1", "glow": 4, "mode": "sweep dot grid" },
+
+    { "type": "rect", "name": "Ramka GPU", "x": 246, "y": 40, "w": 222, "h": 112, "radius": 3, "stroke": "line" },
+    { "type": "text", "name": "GPU tytuł", "x": 256, "y": 49, "text": "[ gpu ]", "size": 11, "weight": 700, "color": "a1" },
+    { "type": "text", "name": "GPU wartości", "x": 458, "y": 49, "align": "right", "text": "{gpu.load:0}%  {gpu.temp:0}°C", "size": 11, "sensor": "gpu.temp", "warn": 78, "crit": 86 },
+    { "type": "graph", "name": "GPU oscyloskop", "x": 254, "y": 64, "w": 206, "h": 80, "sensor": "gpu.load", "min": 0, "max": 100, "points": 104, "thickness": 1.6, "color": "a1", "glow": 4, "mode": "sweep dot grid" },
+
+    { "type": "text", "name": "ram", "x": 16, "y": 168, "text": "ram ", "size": 12, "color": "sub" },
+    { "type": "bar", "name": "ram pasek", "x": 64, "y": 167, "w": 250, "h": 10, "sensor": "ram.load", "segments": 32, "gap": 2, "radius": 0, "colors": ["a2", "a1"] },
+    { "type": "text", "name": "ram wartość", "x": 468, "y": 168, "align": "right", "text": "{ram.used:0.0}G / {ram.total:0}G", "size": 12 },
+    { "type": "text", "name": "vram", "x": 16, "y": 190, "text": "vram", "size": 12, "color": "sub" },
+    { "type": "bar", "name": "vram pasek", "x": 64, "y": 189, "w": 250, "h": 10, "sensor": "gpu.vram", "segments": 32, "gap": 2, "radius": 0, "colors": ["a2", "a1"] },
+    { "type": "text", "name": "vram wartość", "x": 468, "y": 190, "align": "right", "text": "{gpu.vram.used:0.0}G / {gpu.vram.total:0}G", "size": 12 },
+    { "type": "text", "name": "disk", "x": 16, "y": 212, "text": "disk", "size": 12, "color": "sub" },
+    { "type": "bar", "name": "disk pasek", "x": 64, "y": 211, "w": 250, "h": 10, "sensor": "disk.used", "segments": 32, "gap": 2, "radius": 0, "colors": ["a2", "a1"], "warn": 90 },
+    { "type": "text", "name": "disk wartość", "x": 468, "y": 212, "align": "right", "text": "{disk.free:0}G free", "size": 12 },
+    { "type": "text", "name": "cpu°", "x": 16, "y": 234, "text": "cpu°", "size": 12, "color": "sub" },
+    { "type": "bar", "name": "cpu° pasek", "x": 64, "y": 233, "w": 250, "h": 10, "sensor": "cpu.temp", "min": 30, "max": 95, "segments": 32, "gap": 2, "radius": 0, "colors": ["a2", "a1"], "warn": 80, "crit": 90 },
+    { "type": "text", "name": "cpu° wartość", "x": 468, "y": 234, "align": "right", "text": "{cpu.temp:0}°C {cpu.power:0}W", "size": 12 },
+    { "type": "text", "name": "gpu°", "x": 16, "y": 256, "text": "gpu°", "size": 12, "color": "sub" },
+    { "type": "bar", "name": "gpu° pasek", "x": 64, "y": 255, "w": 250, "h": 10, "sensor": "gpu.temp", "min": 30, "max": 90, "segments": 32, "gap": 2, "radius": 0, "colors": ["a2", "a1"], "warn": 78, "crit": 86 },
+    { "type": "text", "name": "gpu° wartość", "x": 468, "y": 256, "align": "right", "text": "{gpu.temp:0}°C {gpu.power:0}W", "size": 12 },
+
+    { "type": "text", "name": "net", "x": 16, "y": 280, "text": "net  rx {net.down:rate}  tx {net.up:rate}", "size": 12, "color": "sub" },
+    { "type": "text", "name": "uptime", "x": 468, "y": 280, "align": "right", "text": "up {sys.uptime}", "size": 12, "color": "dim" },
+    { "type": "text", "name": "Prompt 2", "x": 16, "y": 302, "text": "ember@pc:~$", "size": 11, "color": "sub" },
+    { "type": "text", "name": "Kursor", "x": 108, "y": 300, "text": "█", "size": 12, "color": "a1", "mode": "blink" }
+  ]
+}

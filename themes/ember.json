@@ -1,0 +1,69 @@
+{
+  "name": "Ember",
+  "description": "Ciepły bursztyn. CPU i GPU w pierścieniach, sieć jak oscyloskop, zegar z płynącymi sekundami.",
+  "font": "Bahnschrift",
+  "bg": "#090C11",
+  "palette": {
+    "card": "#121821", "line": "#202836", "text": "#ECEFF4", "sub": "#8A94A6", "dim": "#5E697C",
+    "track": "#1B222E", "a1": "#FFC53D", "a2": "#FF6A3D", "a3": "#FF9A3D", "warn": "#FFB020", "crit": "#FF4D4D"
+  },
+  "widgets": [
+    { "type": "glow", "name": "Poświata", "x": 230, "y": -170, "w": 460, "h": 360, "color": "a2/18" },
+    { "type": "glow", "name": "Poświata 2", "x": -160, "y": 150, "w": 400, "h": 320, "color": "a1/7" },
+
+    { "type": "rect", "name": "Karta CPU", "x": 10, "y": 10, "w": 226, "h": 168, "radius": 16, "colors": ["#151B25", "#0F141C"], "stroke": "line", "shadow": "#000000/70", "glow": 14 },
+    { "type": "rect", "name": "Karta GPU", "x": 244, "y": 10, "w": 226, "h": 168, "radius": 16, "colors": ["#151B25", "#0F141C"], "stroke": "line", "shadow": "#000000/70", "glow": 14 },
+    { "type": "rect", "name": "Karta dół", "x": 10, "y": 186, "w": 460, "h": 124, "radius": 16, "colors": ["#141A24", "#0F141C"], "stroke": "line", "shadow": "#000000/70", "glow": 14 },
+    { "type": "rect", "name": "Linia 1", "x": 163, "y": 202, "w": 1, "h": 94, "color": "line" },
+    { "type": "rect", "name": "Linia 2", "x": 337, "y": 202, "w": 1, "h": 94, "color": "line" },
+
+    { "type": "text", "name": "CPU", "x": 24, "y": 25, "text": "CPU", "size": 12, "weight": 700, "spacing": 2.5, "color": "a1" },
+    { "type": "text", "name": "Nazwa CPU", "x": 72, "y": 26, "w": 150, "align": "right", "text": "{cpu.name}", "size": 11, "color": "dim" },
+    { "type": "gauge", "name": "CPU obciążenie", "x": 20, "y": 44, "w": 116, "h": 116, "sensor": "cpu.load", "thickness": 10, "colors": ["a1", "a2"], "glow": 10, "mode": "dot" },
+    { "type": "text", "name": "CPU %", "x": 78, "y": 90, "align": "center", "text": "{cpu.load:0}%", "size": 28, "weight": 600 },
+    { "type": "text", "name": "CPU % opis", "x": 78, "y": 127, "align": "center", "text": "OBCIĄŻENIE", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "text", "name": "CPU temp opis", "x": 150, "y": 50, "text": "TEMPERATURA", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "text", "name": "CPU temp", "x": 197, "y": 64, "align": "right", "text": "{cpu.temp:0}", "size": 38, "weight": 600, "sensor": "cpu.temp", "warn": 80, "crit": 90 },
+    { "type": "text", "name": "CPU °C", "x": 200, "y": 65, "text": "°C", "size": 13, "color": "sub" },
+    { "type": "bar", "name": "CPU temp pasek", "x": 150, "y": 110, "w": 72, "h": 4, "sensor": "cpu.temp", "min": 30, "max": 95, "colors": ["a1", "a2"], "warn": 80, "crit": 90 },
+    { "type": "icon", "name": "CPU moc ikona", "x": 149, "y": 124, "size": 12, "glyph": "E945", "color": "a3" },
+    { "type": "text", "name": "CPU moc", "x": 167, "y": 126, "text": "{cpu.power:0} W", "size": 13.5, "color": "text" },
+    { "type": "icon", "name": "CPU zegar ikona", "x": 149, "y": 146, "size": 12, "glyph": "E9D9", "color": "a3" },
+    { "type": "text", "name": "CPU zegar", "x": 167, "y": 148, "text": "{cpu.clock:ghz} GHz", "size": 13.5, "color": "text" },
+
+    { "type": "text", "name": "GPU", "x": 258, "y": 25, "text": "GPU", "size": 12, "weight": 700, "spacing": 2.5, "color": "a1" },
+    { "type": "text", "name": "Nazwa GPU", "x": 306, "y": 26, "w": 150, "align": "right", "text": "{gpu.name}", "size": 11, "color": "dim" },
+    { "type": "gauge", "name": "GPU obciążenie", "x": 254, "y": 44, "w": 116, "h": 116, "sensor": "gpu.load", "thickness": 10, "colors": ["a1", "a2"], "glow": 10, "mode": "dot" },
+    { "type": "text", "name": "GPU %", "x": 312, "y": 90, "align": "center", "text": "{gpu.load:0}%", "size": 28, "weight": 600 },
+    { "type": "text", "name": "GPU % opis", "x": 312, "y": 127, "align": "center", "text": "OBCIĄŻENIE", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "text", "name": "GPU temp opis", "x": 384, "y": 50, "text": "TEMPERATURA", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "text", "name": "GPU temp", "x": 431, "y": 64, "align": "right", "text": "{gpu.temp:0}", "size": 38, "weight": 600, "sensor": "gpu.temp", "warn": 78, "crit": 86 },
+    { "type": "text", "name": "GPU °C", "x": 434, "y": 65, "text": "°C", "size": 13, "color": "sub" },
+    { "type": "bar", "name": "GPU temp pasek", "x": 384, "y": 110, "w": 72, "h": 4, "sensor": "gpu.temp", "min": 30, "max": 90, "colors": ["a1", "a2"], "warn": 78, "crit": 86 },
+    { "type": "icon", "name": "GPU moc ikona", "x": 383, "y": 124, "size": 12, "glyph": "E945", "color": "a3" },
+    { "type": "text", "name": "GPU moc", "x": 401, "y": 126, "text": "{gpu.power:0} W", "size": 13.5 },
+    { "type": "icon", "name": "VRAM ikona", "x": 383, "y": 146, "size": 12, "glyph": "E964", "color": "a3" },
+    { "type": "text", "name": "VRAM", "x": 401, "y": 148, "text": "{gpu.vram.used:0.0} GB", "size": 13.5 },
+
+    { "type": "text", "name": "RAM opis", "x": 24, "y": 203, "text": "RAM", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "text", "name": "RAM wartość", "x": 150, "y": 202, "align": "right", "text": "{ram.used:0.0} / {ram.total:0} GB", "size": 11, "color": "sub" },
+    { "type": "bar", "name": "RAM pasek", "x": 24, "y": 218, "w": 126, "h": 7, "sensor": "ram.load", "colors": ["a1", "a2"], "glow": 6 },
+    { "type": "text", "name": "Dysk opis", "x": 24, "y": 240, "text": "DYSK C:", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "text", "name": "Dysk wartość", "x": 150, "y": 239, "align": "right", "text": "{disk.free:0} GB wolne", "size": 11, "color": "sub" },
+    { "type": "bar", "name": "Dysk pasek", "x": 24, "y": 255, "w": 126, "h": 7, "sensor": "disk.used", "colors": ["a1", "a2"], "glow": 6, "warn": 90 },
+    { "type": "text", "name": "Czas pracy opis", "x": 24, "y": 280, "text": "CZAS PRACY", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "text", "name": "Czas pracy", "x": 150, "y": 279, "align": "right", "text": "{sys.uptime}", "size": 11, "color": "sub" },
+
+    { "type": "text", "name": "Sieć opis", "x": 178, "y": 203, "text": "SIEĆ", "size": 8.5, "weight": 600, "spacing": 1.2, "color": "dim" },
+    { "type": "graph", "name": "Sieć wykres", "x": 178, "y": 218, "w": 146, "h": 52, "sensor": "net.down", "points": 73, "thickness": 2, "colors": ["a1", "a2"], "glow": 4, "mode": "sweep dot" },
+    { "type": "icon", "name": "Pobieranie ikona", "x": 176, "y": 280, "size": 11, "glyph": "E74B", "color": "a1" },
+    { "type": "text", "name": "Pobieranie", "x": 191, "y": 281, "text": "{net.down:rate}", "size": 11.5 },
+    { "type": "icon", "name": "Wysyłanie ikona", "x": 254, "y": 280, "size": 11, "glyph": "E74A", "color": "sub" },
+    { "type": "text", "name": "Wysyłanie", "x": 269, "y": 281, "text": "{net.up:rate}", "size": 11.5, "color": "sub" },
+
+    { "type": "text", "name": "Zegar", "x": 456, "y": 204, "align": "right", "text": "{time:HH:mm}", "size": 40, "weight": 600 },
+    { "type": "text", "name": "Dzień", "x": 456, "y": 256, "align": "right", "text": "{date:dddd}", "size": 12, "color": "sub" },
+    { "type": "text", "name": "Data", "x": 456, "y": 274, "align": "right", "text": "{date:d MMMM}", "size": 12, "color": "dim" },
+    { "type": "bar", "name": "Sekundy", "x": 352, "y": 295, "w": 104, "h": 3, "sensor": "time.sec", "max": 60, "colors": ["a1", "a2"] }
+  ]
+}

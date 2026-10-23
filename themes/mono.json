@@ -1,0 +1,33 @@
+{
+  "name": "Mono",
+  "description": "Minimalizm: czerń, biel i wielkie, cienkie cyfry. Czytelne z daleka.",
+  "font": "Segoe UI Variable Display",
+  "bg": "#000000",
+  "palette": {
+    "text": "#FFFFFF", "sub": "#8C8C8C", "dim": "#4E4E4E", "line": "#1C1C1C", "track": "#1E1E1E",
+    "a1": "#FFFFFF", "warn": "#FFB84D", "crit": "#FF5A4D"
+  },
+  "widgets": [
+    { "type": "text", "name": "CPU", "x": 24, "y": 24, "text": "CPU", "size": 12, "weight": 600, "spacing": 3, "color": "sub" },
+    { "type": "text", "name": "Nazwa CPU", "x": 70, "y": 25, "w": 146, "align": "right", "text": "{cpu.name}", "size": 11, "color": "dim" },
+    { "type": "text", "name": "CPU temp", "x": 186, "y": 58, "align": "right", "text": "{cpu.temp:0}", "size": 104, "weight": 300, "sensor": "cpu.temp", "warn": 80, "crit": 90 },
+    { "type": "text", "name": "CPU °", "x": 190, "y": 60, "text": "°C", "size": 22, "weight": 300, "color": "sub" },
+    { "type": "bar", "name": "CPU obciążenie", "x": 24, "y": 186, "w": 192, "h": 2, "radius": 1, "sensor": "cpu.load", "color": "a1" },
+    { "type": "text", "name": "CPU szczegóły", "x": 24, "y": 202, "text": "{cpu.load:0}%   {cpu.clock:ghz} GHz   {cpu.power:0} W", "size": 12.5, "color": "sub" },
+
+    { "type": "rect", "name": "Linia pion", "x": 240, "y": 24, "w": 1, "h": 192, "color": "line" },
+
+    { "type": "text", "name": "GPU", "x": 264, "y": 24, "text": "GPU", "size": 12, "weight": 600, "spacing": 3, "color": "sub" },
+    { "type": "text", "name": "Nazwa GPU", "x": 310, "y": 25, "w": 146, "align": "right", "text": "{gpu.name}", "size": 11, "color": "dim" },
+    { "type": "text", "name": "GPU temp", "x": 426, "y": 58, "align": "right", "text": "{gpu.temp:0}", "size": 104, "weight": 300, "sensor": "gpu.temp", "warn": 78, "crit": 86 },
+    { "type": "text", "name": "GPU °", "x": 430, "y": 60, "text": "°C", "size": 22, "weight": 300, "color": "sub" },
+    { "type": "bar", "name": "GPU obciążenie", "x": 264, "y": 186, "w": 192, "h": 2, "radius": 1, "sensor": "gpu.load", "color": "a1" },
+    { "type": "text", "name": "GPU szczegóły", "x": 264, "y": 202, "text": "{gpu.load:0}%   {gpu.power:0} W   {gpu.vram.used:0.0} GB", "size": 12.5, "color": "sub" },
+
+    { "type": "rect", "name": "Linia poziom", "x": 24, "y": 240, "w": 432, "h": 1, "color": "line" },
+    { "type": "text", "name": "RAM", "x": 24, "y": 262, "text": "RAM  {ram.load:0}%", "size": 14, "weight": 400 },
+    { "type": "text", "name": "Sieć", "x": 130, "y": 262, "text": "↓ {net.down:rate}", "size": 14, "weight": 400, "color": "sub" },
+    { "type": "text", "name": "Data", "x": 24, "y": 288, "text": "{date:dddd, d MMMM}", "size": 11.5, "color": "dim" },
+    { "type": "text", "name": "Zegar", "x": 456, "y": 258, "align": "right", "text": "{time:HH:mm}", "size": 40, "weight": 300 }
+  ]
+}

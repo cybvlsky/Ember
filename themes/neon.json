@@ -1,0 +1,59 @@
+{
+  "name": "Neon",
+  "description": "Cyberpunk: magenta i cyjan, segmentowe wskaźniki LED, świecące cyfry.",
+  "font": "Bahnschrift",
+  "bg": "#08040F",
+  "palette": {
+    "card": "#120A22", "line": "#2A1748", "text": "#F4ECFF", "sub": "#A592C9", "dim": "#6B5B8A",
+    "track": "#1C1233", "a1": "#FF2E97", "a2": "#00E5FF", "a3": "#F9F871", "warn": "#F9F871", "crit": "#FF3B3B"
+  },
+  "widgets": [
+    { "type": "glow", "name": "Poświata magenta", "x": -160, "y": 60, "w": 420, "h": 360, "color": "a1/14" },
+    { "type": "glow", "name": "Poświata cyjan", "x": 240, "y": -120, "w": 420, "h": 340, "color": "a2/12" },
+
+    { "type": "rect", "name": "Pasek górny", "x": 0, "y": 0, "w": 480, "h": 30, "color": "#FFFFFF/3" },
+    { "type": "rect", "name": "Linia neon", "x": 0, "y": 30, "w": 480, "h": 1, "colors": ["a1", "a2"], "angle": 0 },
+    { "type": "text", "name": "Logo", "x": 12, "y": 10, "text": "EMBER//SYS", "size": 12, "weight": 700, "stretch": 3, "spacing": 3, "color": "a1", "glow": 6 },
+    { "type": "text", "name": "Data", "x": 240, "y": 11, "align": "center", "text": "{date:ddd dd.MM}", "size": 11, "stretch": 3, "spacing": 2, "color": "dim", "mode": "upper" },
+    { "type": "text", "name": "Zegar", "x": 468, "y": 9, "align": "right", "text": "{time:HH:mm:ss}", "size": 14, "weight": 600, "stretch": 3, "spacing": 1, "color": "a2", "glow": 5 },
+
+    { "type": "rect", "name": "Panel CPU", "x": 10, "y": 40, "w": 224, "h": 170, "radius": 4, "color": "card/85", "stroke": "a1/45" },
+    { "type": "rect", "name": "Narożnik CPU", "x": 10, "y": 40, "w": 34, "h": 3, "color": "a1" },
+    { "type": "text", "name": "CPU", "x": 22, "y": 53, "text": "CPU", "size": 13, "weight": 700, "stretch": 3, "spacing": 3, "color": "a1", "glow": 5 },
+    { "type": "text", "name": "Nazwa CPU", "x": 80, "y": 54, "w": 142, "align": "right", "text": "{cpu.name}", "size": 10, "stretch": 3, "spacing": 1, "color": "dim", "mode": "upper" },
+    { "type": "gauge", "name": "CPU LED", "x": 20, "y": 72, "w": 128, "h": 128, "sensor": "cpu.load", "thickness": 12, "segments": 24, "gap": 2.5, "colors": ["a2", "a1"], "glow": 6, "smooth": 0.25 },
+    { "type": "text", "name": "CPU %", "x": 84, "y": 120, "align": "center", "text": "{cpu.load:0}", "size": 34, "weight": 700, "stretch": 3 },
+    { "type": "text", "name": "CPU % opis", "x": 84, "y": 160, "align": "center", "text": "LOAD %", "size": 9, "stretch": 3, "spacing": 2, "color": "dim" },
+    { "type": "text", "name": "CPU temp opis", "x": 158, "y": 80, "text": "TEMP", "size": 9, "stretch": 3, "spacing": 2, "color": "dim" },
+    { "type": "text", "name": "CPU temp", "x": 158, "y": 96, "text": "{cpu.temp:0}°", "size": 40, "weight": 700, "stretch": 3, "color": "a1", "glow": 8, "sensor": "cpu.temp", "warn": 80, "crit": 90 },
+    { "type": "text", "name": "CPU GHz", "x": 158, "y": 154, "text": "{cpu.clock:ghz} GHZ", "size": 12, "weight": 600, "stretch": 3, "color": "a2" },
+    { "type": "text", "name": "CPU W", "x": 158, "y": 174, "text": "{cpu.power:0} W", "size": 12, "weight": 600, "stretch": 3 },
+
+    { "type": "rect", "name": "Panel GPU", "x": 246, "y": 40, "w": 224, "h": 170, "radius": 4, "color": "card/85", "stroke": "a2/45" },
+    { "type": "rect", "name": "Narożnik GPU", "x": 246, "y": 40, "w": 34, "h": 3, "color": "a2" },
+    { "type": "text", "name": "GPU", "x": 258, "y": 53, "text": "GPU", "size": 13, "weight": 700, "stretch": 3, "spacing": 3, "color": "a2", "glow": 5 },
+    { "type": "text", "name": "Nazwa GPU", "x": 316, "y": 54, "w": 142, "align": "right", "text": "{gpu.name}", "size": 10, "stretch": 3, "spacing": 1, "color": "dim", "mode": "upper" },
+    { "type": "gauge", "name": "GPU LED", "x": 256, "y": 72, "w": 128, "h": 128, "sensor": "gpu.load", "thickness": 12, "segments": 24, "gap": 2.5, "colors": ["a1", "a2"], "glow": 6, "smooth": 0.25 },
+    { "type": "text", "name": "GPU %", "x": 320, "y": 120, "align": "center", "text": "{gpu.load:0}", "size": 34, "weight": 700, "stretch": 3 },
+    { "type": "text", "name": "GPU % opis", "x": 320, "y": 160, "align": "center", "text": "LOAD %", "size": 9, "stretch": 3, "spacing": 2, "color": "dim" },
+    { "type": "text", "name": "GPU temp opis", "x": 394, "y": 80, "text": "TEMP", "size": 9, "stretch": 3, "spacing": 2, "color": "dim" },
+    { "type": "text", "name": "GPU temp", "x": 394, "y": 96, "text": "{gpu.temp:0}°", "size": 40, "weight": 700, "stretch": 3, "color": "a2", "glow": 8, "sensor": "gpu.temp", "warn": 78, "crit": 86 },
+    { "type": "text", "name": "GPU W", "x": 394, "y": 154, "text": "{gpu.power:0} W", "size": 12, "weight": 600, "stretch": 3, "color": "a1" },
+    { "type": "text", "name": "GPU wentylator", "x": 394, "y": 174, "text": "{gpu.fan:0} RPM", "size": 12, "weight": 600, "stretch": 3 },
+
+    { "type": "rect", "name": "Panel dół", "x": 10, "y": 220, "w": 460, "h": 90, "radius": 4, "color": "card/85", "stroke": "line" },
+    { "type": "text", "name": "RAM opis", "x": 22, "y": 236, "text": "RAM", "size": 11, "weight": 700, "stretch": 3, "spacing": 2, "color": "a1" },
+    { "type": "bar", "name": "RAM LED", "x": 66, "y": 235, "w": 150, "h": 11, "sensor": "ram.load", "segments": 20, "gap": 2, "radius": 1, "colors": ["a2", "a1"], "glow": 4 },
+    { "type": "text", "name": "RAM wartość", "x": 296, "y": 236, "align": "right", "text": "{ram.used:0.0}/{ram.total:0} GB", "size": 11, "weight": 600, "stretch": 3 },
+    { "type": "text", "name": "VRAM opis", "x": 22, "y": 260, "text": "VRAM", "size": 11, "weight": 700, "stretch": 3, "spacing": 2, "color": "a2" },
+    { "type": "bar", "name": "VRAM LED", "x": 66, "y": 259, "w": 150, "h": 11, "sensor": "gpu.vram", "segments": 20, "gap": 2, "radius": 1, "colors": ["a2", "a1"], "glow": 4 },
+    { "type": "text", "name": "VRAM wartość", "x": 296, "y": 260, "align": "right", "text": "{gpu.vram.used:0.0}/{gpu.vram.total:0} GB", "size": 11, "weight": 600, "stretch": 3 },
+    { "type": "text", "name": "Dysk opis", "x": 22, "y": 284, "text": "DISK", "size": 11, "weight": 700, "stretch": 3, "spacing": 2, "color": "a3" },
+    { "type": "bar", "name": "Dysk LED", "x": 66, "y": 283, "w": 150, "h": 11, "sensor": "disk.used", "segments": 20, "gap": 2, "radius": 1, "colors": ["a2", "a1"], "glow": 4 },
+    { "type": "text", "name": "Dysk wartość", "x": 296, "y": 284, "align": "right", "text": "{disk.free:0} GB FREE", "size": 11, "weight": 600, "stretch": 3 },
+    { "type": "rect", "name": "Linia sieć", "x": 308, "y": 232, "w": 1, "h": 66, "color": "line" },
+    { "type": "text", "name": "Sieć opis", "x": 320, "y": 236, "text": "NET", "size": 11, "weight": 700, "stretch": 3, "spacing": 2, "color": "a2" },
+    { "type": "text", "name": "Pobieranie", "x": 458, "y": 236, "align": "right", "text": "{net.down:rate}", "size": 11, "weight": 600, "stretch": 3, "color": "a2" },
+    { "type": "graph", "name": "Sieć wykres", "x": 320, "y": 252, "w": 138, "h": 46, "sensor": "net.down", "points": 46, "thickness": 1.6, "colors": ["a2", "a1"], "glow": 4, "mode": "sweep dot" }
+  ]
+}

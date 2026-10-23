@@ -1,0 +1,46 @@
+{
+  "name": "Latte",
+  "description": "Jasny i ciepły: kremowe kafelki, miękkie cienie, akcent karmelu.",
+  "font": "Segoe UI Variable Display",
+  "bg": "#F1EBE2",
+  "palette": {
+    "card": "#FFFFFF", "line": "#E9E0D4", "text": "#2A2420", "sub": "#7B7066", "dim": "#A99D90",
+    "track": "#EEE6DB", "a1": "#F2A65A", "a2": "#D9622B", "a3": "#3F8F7F", "warn": "#E0A100", "crit": "#D8343A"
+  },
+  "widgets": [
+    { "type": "rect", "name": "Kafel CPU", "x": 12, "y": 12, "w": 223, "h": 143, "radius": 18, "color": "card", "shadow": "#6B4A2A/22", "glow": 16 },
+    { "type": "text", "name": "CPU", "x": 28, "y": 28, "text": "Procesor", "size": 13, "weight": 600 },
+    { "type": "text", "name": "Nazwa CPU", "x": 28, "y": 46, "text": "{cpu.name}", "size": 10.5, "color": "dim" },
+    { "type": "gauge", "name": "CPU pierścień", "x": 132, "y": 26, "w": 90, "h": 90, "sensor": "cpu.load", "thickness": 9, "start": -90, "sweep": 360, "colors": ["a1", "a2"] },
+    { "type": "text", "name": "CPU %", "x": 177, "y": 64, "align": "center", "text": "{cpu.load:0}%", "size": 17, "weight": 600 },
+    { "type": "text", "name": "CPU temp", "x": 26, "y": 74, "text": "{cpu.temp:0}°", "size": 44, "weight": 600, "sensor": "cpu.temp", "warn": 80, "crit": 90 },
+    { "type": "text", "name": "CPU detale", "x": 28, "y": 132, "text": "{cpu.clock:ghz} GHz · {cpu.power:0} W", "size": 11.5, "color": "sub" },
+
+    { "type": "rect", "name": "Kafel GPU", "x": 245, "y": 12, "w": 223, "h": 143, "radius": 18, "color": "card", "shadow": "#6B4A2A/22", "glow": 16 },
+    { "type": "text", "name": "GPU", "x": 261, "y": 28, "text": "Grafika", "size": 13, "weight": 600 },
+    { "type": "text", "name": "Nazwa GPU", "x": 261, "y": 46, "text": "{gpu.name}", "size": 10.5, "color": "dim" },
+    { "type": "gauge", "name": "GPU pierścień", "x": 365, "y": 26, "w": 90, "h": 90, "sensor": "gpu.load", "thickness": 9, "start": -90, "sweep": 360, "colors": ["a1", "a2"] },
+    { "type": "text", "name": "GPU %", "x": 410, "y": 64, "align": "center", "text": "{gpu.load:0}%", "size": 17, "weight": 600 },
+    { "type": "text", "name": "GPU temp", "x": 259, "y": 74, "text": "{gpu.temp:0}°", "size": 44, "weight": 600, "sensor": "gpu.temp", "warn": 78, "crit": 86 },
+    { "type": "text", "name": "GPU detale", "x": 261, "y": 132, "text": "{gpu.power:0} W · {gpu.vram.used:0.0} GB VRAM", "size": 11.5, "color": "sub" },
+
+    { "type": "rect", "name": "Kafel pamięć", "x": 12, "y": 165, "w": 223, "h": 143, "radius": 18, "color": "card", "shadow": "#6B4A2A/22", "glow": 16 },
+    { "type": "text", "name": "RAM opis", "x": 28, "y": 182, "text": "Pamięć", "size": 13, "weight": 600 },
+    { "type": "text", "name": "RAM", "x": 219, "y": 183, "align": "right", "text": "{ram.used:0.0} / {ram.total:0} GB", "size": 11.5, "color": "sub" },
+    { "type": "bar", "name": "RAM pasek", "x": 28, "y": 204, "w": 191, "h": 10, "sensor": "ram.load", "colors": ["a1", "a2"] },
+    { "type": "text", "name": "Dysk opis", "x": 28, "y": 230, "text": "Dysk C:", "size": 13, "weight": 600 },
+    { "type": "text", "name": "Dysk", "x": 219, "y": 231, "align": "right", "text": "{disk.free:0} GB wolne", "size": 11.5, "color": "sub" },
+    { "type": "bar", "name": "Dysk pasek", "x": 28, "y": 252, "w": 191, "h": 10, "sensor": "disk.used", "colors": ["#7FC3B4", "a3"], "warn": 90 },
+    { "type": "icon", "name": "Sieć ikona", "x": 27, "y": 278, "size": 12, "glyph": "E74B", "color": "a2" },
+    { "type": "text", "name": "Sieć", "x": 44, "y": 280, "text": "{net.down:rate}", "size": 11.5, "color": "sub" },
+    { "type": "icon", "name": "Wysyłanie ikona", "x": 128, "y": 278, "size": 12, "glyph": "E74A", "color": "a3" },
+    { "type": "text", "name": "Wysyłanie", "x": 145, "y": 280, "text": "{net.up:rate}", "size": 11.5, "color": "sub" },
+
+    { "type": "rect", "name": "Kafel zegar", "x": 245, "y": 165, "w": 223, "h": 143, "radius": 18, "colors": ["#F4A85E", "#DA5E2C"], "angle": 120, "shadow": "#D9622B/40", "glow": 18 },
+    { "type": "glow", "name": "Blask", "x": 330, "y": 120, "w": 220, "h": 140, "color": "#FFFFFF/20" },
+    { "type": "text", "name": "Zegar", "x": 262, "y": 190, "text": "{time:HH:mm}", "size": 54, "weight": 600, "color": "#FFFFFF" },
+    { "type": "text", "name": "Dzień", "x": 263, "y": 262, "text": "{date:dddd}", "size": 13, "weight": 600, "color": "#FFFFFF" },
+    { "type": "text", "name": "Data", "x": 263, "y": 282, "text": "{date:d MMMM yyyy}", "size": 11.5, "color": "#FFFFFF/80" },
+    { "type": "gauge", "name": "Sekundy", "x": 410, "y": 254, "w": 42, "h": 42, "sensor": "time.sec", "max": 60, "thickness": 4, "start": -90, "sweep": 360, "color": "#FFFFFF", "track": "#FFFFFF/25", "mode": "alternate" }
+  ]
+}

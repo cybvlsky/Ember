@@ -1,0 +1,55 @@
+{
+  "name": "Aurora",
+  "description": "Zorza: turkus i fiolet na szkle. Temperatury w dużych łukach, obciążenie w wewnętrznym pierścieniu.",
+  "font": "Bahnschrift",
+  "bg": "#060A14",
+  "palette": {
+    "card": "#FFFFFF/5", "line": "#FFFFFF/10", "text": "#EEF3FF", "sub": "#93A3C4", "dim": "#5A6B8E",
+    "track": "#FFFFFF/7", "a1": "#4FE3D6", "a2": "#7B6CFF", "a3": "#D47CFF", "warn": "#FFC14D", "crit": "#FF5A7A"
+  },
+  "widgets": [
+    { "type": "glow", "name": "Zorza turkus", "x": -170, "y": -190, "w": 520, "h": 420, "color": "a1/16" },
+    { "type": "glow", "name": "Zorza fiolet", "x": 190, "y": 90, "w": 480, "h": 400, "color": "a2/22" },
+    { "type": "glow", "name": "Zorza róż", "x": 300, "y": -160, "w": 300, "h": 260, "color": "a3/10" },
+
+    { "type": "gauge", "name": "CPU temp łuk", "x": 14, "y": 14, "w": 172, "h": 172, "sensor": "cpu.temp", "min": 20, "max": 100, "thickness": 12, "start": 150, "sweep": 240, "colors": ["a1", "a2", "a3"], "glow": 8, "mode": "dot", "warn": 82, "crit": 92 },
+    { "type": "gauge", "name": "CPU obciążenie łuk", "x": 36, "y": 36, "w": 128, "h": 128, "sensor": "cpu.load", "thickness": 4, "start": 150, "sweep": 240, "colors": ["a1/80", "a2/80"] },
+    { "type": "text", "name": "CPU temp", "x": 100, "y": 70, "align": "center", "text": "{cpu.temp:0}°", "size": 46, "weight": 600, "sensor": "cpu.temp", "warn": 82, "crit": 92 },
+    { "type": "text", "name": "CPU", "x": 100, "y": 126, "align": "center", "text": "CPU", "size": 11, "weight": 700, "spacing": 3, "color": "a1" },
+    { "type": "text", "name": "CPU obciążenie", "x": 100, "y": 145, "align": "center", "text": "{cpu.load:0}%", "size": 14, "color": "sub" },
+    { "type": "text", "name": "Nazwa CPU", "x": 30, "y": 172, "w": 140, "align": "center", "text": "{cpu.name}", "size": 10, "color": "dim" },
+
+    { "type": "gauge", "name": "GPU temp łuk", "x": 294, "y": 14, "w": 172, "h": 172, "sensor": "gpu.temp", "min": 20, "max": 100, "thickness": 12, "start": 150, "sweep": 240, "colors": ["a1", "a2", "a3"], "glow": 8, "mode": "dot", "warn": 80, "crit": 88 },
+    { "type": "gauge", "name": "GPU obciążenie łuk", "x": 316, "y": 36, "w": 128, "h": 128, "sensor": "gpu.load", "thickness": 4, "start": 150, "sweep": 240, "colors": ["a1/80", "a2/80"] },
+    { "type": "text", "name": "GPU temp", "x": 380, "y": 70, "align": "center", "text": "{gpu.temp:0}°", "size": 46, "weight": 600, "sensor": "gpu.temp", "warn": 80, "crit": 88 },
+    { "type": "text", "name": "GPU", "x": 380, "y": 126, "align": "center", "text": "GPU", "size": 11, "weight": 700, "spacing": 3, "color": "a1" },
+    { "type": "text", "name": "GPU obciążenie", "x": 380, "y": 145, "align": "center", "text": "{gpu.load:0}%", "size": 14, "color": "sub" },
+    { "type": "text", "name": "Nazwa GPU", "x": 310, "y": 172, "w": 140, "align": "center", "text": "{gpu.name}", "size": 10, "color": "dim" },
+
+    { "type": "text", "name": "Zegar", "x": 240, "y": 44, "align": "center", "text": "{time:HH:mm}", "size": 30, "weight": 600 },
+    { "type": "text", "name": "Data", "x": 240, "y": 84, "align": "center", "text": "{date:ddd, d MMM}", "size": 11.5, "color": "sub" },
+    { "type": "rect", "name": "Kreska", "x": 222, "y": 110, "w": 36, "h": 2, "radius": 1, "colors": ["a1", "a2"], "angle": 0 },
+    { "type": "text", "name": "Moc opis", "x": 240, "y": 128, "align": "center", "text": "MOC", "size": 8.5, "weight": 600, "spacing": 1.5, "color": "dim" },
+    { "type": "text", "name": "Moc CPU", "x": 240, "y": 144, "align": "center", "text": "{cpu.power:0} W", "size": 13 },
+    { "type": "text", "name": "Moc GPU", "x": 240, "y": 164, "align": "center", "text": "{gpu.power:0} W", "size": 13, "color": "sub" },
+
+    { "type": "rect", "name": "Szkło RAM", "x": 14, "y": 202, "w": 146, "h": 104, "radius": 14, "color": "card", "stroke": "line" },
+    { "type": "text", "name": "RAM opis", "x": 28, "y": 216, "text": "PAMIĘĆ", "size": 8.5, "weight": 600, "spacing": 1.5, "color": "dim" },
+    { "type": "text", "name": "RAM", "x": 28, "y": 234, "text": "{ram.used:0.0}", "size": 28, "weight": 600 },
+    { "type": "text", "name": "RAM z", "x": 146, "y": 250, "align": "right", "text": "z {ram.total:0} GB", "size": 10.5, "color": "sub" },
+    { "type": "bar", "name": "RAM pasek", "x": 28, "y": 280, "w": 118, "h": 6, "sensor": "ram.load", "colors": ["a1", "a2"], "glow": 6 },
+
+    { "type": "rect", "name": "Szkło sieć", "x": 167, "y": 202, "w": 146, "h": 104, "radius": 14, "color": "card", "stroke": "line" },
+    { "type": "text", "name": "Sieć opis", "x": 181, "y": 216, "text": "SIEĆ", "size": 8.5, "weight": 600, "spacing": 1.5, "color": "dim" },
+    { "type": "graph", "name": "Sieć wykres", "x": 181, "y": 230, "w": 118, "h": 40, "sensor": "net.down", "points": 60, "thickness": 1.6, "colors": ["a1", "a2"], "glow": 3, "mode": "sweep dot" },
+    { "type": "icon", "name": "Pobieranie ikona", "x": 179, "y": 280, "size": 10, "glyph": "E74B", "color": "a1" },
+    { "type": "text", "name": "Pobieranie", "x": 192, "y": 281, "text": "{net.down:rate}", "size": 11 },
+    { "type": "text", "name": "Wysyłanie", "x": 299, "y": 281, "align": "right", "text": "{net.up:rate}", "size": 11, "color": "sub" },
+
+    { "type": "rect", "name": "Szkło VRAM", "x": 320, "y": 202, "w": 146, "h": 104, "radius": 14, "color": "card", "stroke": "line" },
+    { "type": "text", "name": "VRAM opis", "x": 334, "y": 216, "text": "VRAM", "size": 8.5, "weight": 600, "spacing": 1.5, "color": "dim" },
+    { "type": "text", "name": "VRAM", "x": 334, "y": 234, "text": "{gpu.vram.used:0.0}", "size": 28, "weight": 600 },
+    { "type": "text", "name": "VRAM z", "x": 452, "y": 250, "align": "right", "text": "z {gpu.vram.total:0} GB", "size": 10.5, "color": "sub" },
+    { "type": "bar", "name": "VRAM pasek", "x": 334, "y": 280, "w": 118, "h": 6, "sensor": "gpu.vram", "colors": ["a1", "a2"], "glow": 6 }
+  ]
+}
