@@ -163,6 +163,14 @@ A few switches help while working on it:
 
 GitHub Actions builds every release from a tag. Add a `## x.y.z` section to [CHANGELOG.md](CHANGELOG.md), commit, then `git tag vx.y.z` and `git push --tags`. The workflow runs the self-test, builds a self-contained installer with Inno Setup and publishes the release with that changelog section as its notes.
 
+## How this was built
+
+Ember was vibe-coded with "Claude Opus 5.5" (https://www.anthropic.com/claude-opus-5-5) by Anthropic. Claude was heavily involved in writing, debugging and refining the code, while I directed the project, tested it on real hardware and worked on getting the performance and user experience right.
+
+I also used "REA (Reverse Engineer Anything)" (https://github.com/morluto/rea) to help investigate the original software and understand how the display communicates.
+
+I'm not hiding the AI involvement. Ember is an open-source project built to solve a problem I had with the stock software. What matters to me is that it works, runs efficiently and gives other owners of these little screens a useful alternative.
+
 ## Credits
 
 - [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL 2.0) reads the sensors.
