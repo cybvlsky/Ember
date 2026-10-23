@@ -14,7 +14,7 @@ tmp = tempfile.mkdtemp(prefix="ember-docs-")
 os.makedirs(os.path.join(docs, "themes"), exist_ok=True)
 
 subprocess.run([exe, "--render", os.path.join(tmp, "render")], check=True)
-subprocess.run([exe, "--no-elevate", "--demo", "--screenshots", os.path.join(tmp, "shots")], check=True)
+subprocess.run([exe, "--no-elevate", "--demo", "--language", "en", "--screenshots", os.path.join(tmp, "shots")], check=True)
 render, shots = os.path.join(tmp, "render"), os.path.join(tmp, "shots")
 
 BG_TOP, BG_BOTTOM = (36, 33, 31), (27, 25, 23)

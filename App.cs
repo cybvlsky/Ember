@@ -339,7 +339,7 @@ public static class App
     {
         Log.Info($"start {Environment.ProcessPath} elevated={Sensors.Elevated} pawnio={Sensors.PawnIoVersion?.ToString() ?? "none"}");
         Cfg = Settings.Load(out bool firstRun);
-        if (firstRun && firstLanguage != null && L.Languages.Contains(firstLanguage)) Cfg.Language = firstLanguage;
+        if ((firstRun || Shots) && firstLanguage != null && L.Languages.Contains(firstLanguage)) Cfg.Language = firstLanguage;
         L.Lang = Cfg.Language;
         AllThemes = Themes.LoadAll();
         var theme = (Shots ? null : AllThemes.FirstOrDefault(t => t.Id == Cfg.Theme)) ?? AllThemes[0];

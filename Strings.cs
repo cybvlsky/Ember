@@ -23,6 +23,12 @@ public static class L
     internal static readonly Dictionary<string, string> Polish = new()
     {
         ["Screen"] = "Ekran",
+        ["made by"] = "autor",
+        ["Expand the menu"] = "Rozwiń menu",
+        ["Collapse the menu"] = "Zwiń menu",
+        ["{0:0} fps on {1}"] = "{0:0} kl./s na {1}",
+        ["Frame rate"] = "Płynność",
+        ["USB link"] = "Łącze USB",
         ["Themes"] = "Motywy",
         ["Editor"] = "Edytor",
         ["Sensors"] = "Czujniki",
@@ -46,7 +52,6 @@ public static class L
         ["Updates per second that reach the panel"] = "Ile razy na sekundę ekran dostaje zmienione piksele",
         ["USB link use. The panel takes about 157 KB/s."] = "Wykorzystanie łącza USB. Ekran przyjmuje ok. 157 KB/s.",
         ["{0:0} fps"] = "{0:0} kl./s",
-        ["{0:0} KB/s, {1:0}% of the link"] = "{0:0} KB/s, {1:0}% łącza",
         ["Administrator rights"] = "Uprawnienia administratora",
         ["yes"] = "są",
         ["no"] = "brak",

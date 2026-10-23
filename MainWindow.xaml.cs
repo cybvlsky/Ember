@@ -20,18 +20,16 @@ namespace Ember;
 public partial class MainWindow : Window
 {
     const int W = TuringLcd.Width, H = TuringLcd.Height;
-    const int GlowW = 24, GlowH = 16;
-    static readonly Brush TextBrush = Br("#EEE8E2"), SubBrush = Br("#A69D94"), DimBrush = Br("#756D66"), OkBrush = Br("#8BD49C"), BadBrush = Br("#FF7466"),
-        EmberBrush = Br("#FF7A33"), LineBrush = Br("#3A3633"), RaisedBrush = Br("#34302D");
+    static readonly Brush TextBrush = Br("#E8ECF2"), SubBrush = Br("#8A94A6"), DimBrush = Br("#5E697C"), OkBrush = Br("#3DDC84"), BadBrush = Br("#FF6B5B"),
+        EmberBrush = Br("#FFB347"), LineBrush = Br("#1C2330"), RaisedBrush = Br("#18202B"), RowLine = Br("#1A212C"), HoverFill = Br("#18202B");
 
     readonly DispatcherTimer timer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
-    readonly WriteableBitmap screenBmp = new(W, H, 96, 96, PixelFormats.Pbgra32, null);
-    readonly WriteableBitmap glowBmp = new(GlowW, GlowH, 96, 96, PixelFormats.Pbgra32, null);
-    readonly byte[] screenBuf = new byte[W * H * 4], glowBuf = new byte[GlowW * GlowH * 4];
+    readonly WriteableBitmap screenBmp = new(W, H, 96, 96, PixelFormats.Pbgra32, null), miniBmp = new(W, H, 96, 96, PixelFormats.Pbgra32, null);
+    readonly byte[] screenBuf = new byte[W * H * 4];
     int previewSeen = -1, tick;
     string page = "screen";
-    readonly Grid toastHost = new() { IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 64) };
-    readonly Grid modalHost = new() { Visibility = Visibility.Collapsed, Background = Br("#A0141210") };
+    readonly Grid toastHost = new() { IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 34) };
+    readonly Grid modalHost = new() { Visibility = Visibility.Collapsed, Background = Br("#B0050709") };
 
     static string T(string en) => L.T(en);
 
@@ -43,16 +41,21 @@ public partial class MainWindow : Window
         Grid.SetRowSpan(toastHost, 2);
         root.Children.Add(modalHost);
         Grid.SetRowSpan(modalHost, 2);
-        using (var logo = Icons.Logo(44)) Logo.Source = ToImage(logo);
+        using (var logo = Icons.Logo(76)) Logo.Source = ToImage(logo);
         using (var icon = Icons.Logo(64)) Icon = ToImage(icon);
         ScreenImage.Source = screenBmp;
-        GlowImage.Source = glowBmp;
+        MiniScreen.Source = miniBmp;
+        MiniPrev.Click += (_, _) => StepTheme(-1);
+        MiniNext.Click += (_, _) => StepTheme(1);
+        MiniCard.MouseLeftButtonUp += (_, e) => { if (e.OriginalSource is not TextBlock { FontFamily.Source: var f } || !f.Contains("Icons")) NavScreen.IsChecked = true; };
+        CreditLine.Text = T("made by");
+        SideToggle.Click += (_, _) => { pinned = !collapsed; SetSidebar(true); };
+        SizeChanged += (_, _) => SetSidebar(true);
+        FitToScreen();
+        CreditBtn.Click += (_, _) => App.OpenUrl(App.RepoUrl);
 
-        NavScreen.Checked += (_, _) => Show("screen");
-        NavThemes.Checked += (_, _) => Show("themes");
-        NavEditor.Checked += (_, _) => Show("editor");
-        NavSensors.Checked += (_, _) => Show("sensors");
-        NavSettings.Checked += (_, _) => Show("settings");
+        foreach (var (tab, name) in new[] { (NavScreen, "screen"), (NavThemes, "themes"), (NavEditor, "editor"), (NavSensors, "sensors"), (NavSettings, "settings") })
+            tab.Checked += (_, _) => { Show(name); MovePill(tab, true); };
         MinBtn.Click += (_, _) => WindowState = WindowState.Minimized;
         MaxBtn.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         CloseBtn.Click += (_, _) => Close();
@@ -62,7 +65,7 @@ public partial class MainWindow : Window
             // Minimised: nothing is visible, so the UI clock (preview, live thumbnails) and the engine's preview copies stop.
             bool min = WindowState == WindowState.Minimized;
             if (min) timer.Stop(); else timer.Start();
-            App.Engine.PreviewWanted = !min && page == "screen";
+            App.Engine.PreviewWanted = !min;
         };
 
         InitScreenPage();
@@ -93,8 +96,48 @@ public partial class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         int round = 2;
         DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int)); // Windows 11 rounded corners
-        Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
+        var st = (ScaleTransform)Root.RenderTransform;
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.98, 1, TimeSpan.FromMilliseconds(420)) { EasingFunction = ease });
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.98, 1, TimeSpan.FromMilliseconds(420)) { EasingFunction = ease });
+        SetSidebar(false);
+        MovePill(NavPanel.Children.OfType<RadioButton>().First(r => r.IsChecked == true), false);
         timer.Start();
+    }
+
+    bool collapsed;
+    bool? pinned;
+
+    /// Icon rail or full sidebar: whatever the person chose last, otherwise narrow windows and the editor get the rail.
+    void SetSidebar(bool animate)
+    {
+        bool want = pinned ?? (page == "editor" || ActualWidth is > 0 and < 1240);
+        if (want == collapsed && SideBar.Width is 76 or 256) return;
+        collapsed = want;
+        var d = TimeSpan.FromMilliseconds(animate ? 240 : 0);
+        SideBar.BeginAnimation(WidthProperty, new DoubleAnimation(collapsed ? 76 : 256, d) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } });
+        MiniCard.Visibility = CreditIcon.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        SideToggle.Content = collapsed ? "" : "";
+        SideToggle.ToolTip = collapsed ? T("Expand the menu") : T("Collapse the menu");
+        foreach (var tab in NavPanel.Children.OfType<RadioButton>()) tab.ToolTip = collapsed ? tab.Content : null;
+    }
+
+    /// The default size suits a big monitor; on a smaller work area take most of it instead of spilling over.
+    void FitToScreen()
+    {
+        var area = SystemParameters.WorkArea;
+        Width = Math.Min(Width, Math.Round(area.Width * 0.92));
+        Height = Math.Min(Height, Math.Round(area.Height * 0.9));
+    }
+
+    /// Slides the highlight in the sidebar to `tab`.
+    void MovePill(RadioButton tab, bool animate)
+    {
+        if (!tab.IsLoaded) return;
+        double y = tab.TranslatePoint(new Point(0, 0), NavPanel).Y;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        NavPillY.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(y, TimeSpan.FromMilliseconds(animate ? 260 : 0)) { EasingFunction = ease });
     }
 
     [DllImport("dwmapi")] static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int value, int size);
@@ -110,9 +153,14 @@ public partial class MainWindow : Window
         page = name;
         var pages = new Dictionary<string, FrameworkElement> { ["screen"] = PageScreen, ["themes"] = PageThemes, ["editor"] = PageEditor, ["sensors"] = PageSensors, ["settings"] = PageSettings };
         foreach (var (k, el) in pages) el.Visibility = k == name ? Visibility.Visible : Visibility.Collapsed;
-        pages[name].BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
+        var shown = pages[name];
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        shown.RenderTransform = new TranslateTransform(0, 10);
+        shown.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+        shown.RenderTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
         TopActions.Children.Clear();
-        App.Engine.PreviewWanted = name == "screen";
+        App.Engine.PreviewWanted = true;
+        PageTitle.Text = name switch { "themes" => T("Themes"), "editor" => T("Editor"), "sensors" => T("Sensors"), "settings" => T("Settings"), _ => T("Screen") };
         switch (name)
         {
             case "themes":
@@ -134,6 +182,7 @@ public partial class MainWindow : Window
                 break;
         }
         if (name != "themes") DisposeGallery();
+        if (IsLoaded) SetSidebar(true);
     }
 
     void Tick()
@@ -143,11 +192,7 @@ public partial class MainWindow : Window
         {
             case "screen":
                 if (App.Engine.CopyPreview(screenBuf, ref previewSeen))
-                {
                     screenBmp.WritePixels(new Int32Rect(0, 0, W, H), screenBuf, W * 4, 0);
-                    if (tick % 4 == 0) UpdateGlow();
-                }
-                if (tick % 10 == 0) UpdateScreenStatus();
                 break;
             case "themes":
                 if (tick % 4 == 0) TickGallery();
@@ -159,29 +204,10 @@ public partial class MainWindow : Window
                 if (tick % 30 == 0) UpdateSensors();
                 break;
         }
-    }
-
-    /// Averages the frame into a 24x16 grid; blown up and blurred behind the device it reads as the panel lighting the desk.
-    void UpdateGlow()
-    {
-        const int cw = W / GlowW, ch = H / GlowH;
-        for (int gy = 0; gy < GlowH; gy++)
-            for (int gx = 0; gx < GlowW; gx++)
-            {
-                int r = 0, g = 0, b = 0, n = 0;
-                for (int y = gy * ch + 2; y < (gy + 1) * ch; y += 4)
-                    for (int x = gx * cw + 2; x < (gx + 1) * cw; x += 4)
-                    {
-                        int i = (y * W + x) * 4;
-                        b += screenBuf[i]; g += screenBuf[i + 1]; r += screenBuf[i + 2]; n++;
-                    }
-                int o = (gy * GlowW + gx) * 4;
-                glowBuf[o] = (byte)Math.Min(255, b * 3 / 2 / n);
-                glowBuf[o + 1] = (byte)Math.Min(255, g * 3 / 2 / n);
-                glowBuf[o + 2] = (byte)Math.Min(255, r * 3 / 2 / n);
-                glowBuf[o + 3] = 255;
-            }
-        glowBmp.WritePixels(new Int32Rect(0, 0, GlowW, GlowH), glowBuf, GlowW * 4, 0);
+        // The sidebar thumbnail has its own bitmap at ~4 fps, so it is not redrawn with every preview frame.
+        if (tick % 8 == 0 && (page == "screen" || App.Engine.CopyPreview(screenBuf, ref previewSeen)))
+            miniBmp.WritePixels(new Int32Rect(0, 0, W, H), screenBuf, W * 4, 0);
+        if (tick % 10 == 0) UpdateScreenStatus();
     }
 
     void OnKey(object sender, KeyEventArgs e)
@@ -322,7 +348,7 @@ public partial class MainWindow : Window
             rb.Checked += (_, _) => changed(val);
             wp.Children.Add(rb);
         }
-        return new Border { Child = wp, BorderBrush = (Brush)FindResource("Line2"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) };
+        return new Border { Child = wp, Background = Br("#0AFFFFFF"), BorderBrush = (Brush)FindResource("Line2"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) };
     }
 
     public TextBlock Caption(string text, double top = 18) => new() { Text = text, Style = (Style)FindResource("Head"), Margin = new Thickness(0, top, 0, 8) };
@@ -331,18 +357,27 @@ public partial class MainWindow : Window
     {
         var b = new Border
         {
-            Background = bad ? BadBrush : TextBrush, CornerRadius = new CornerRadius(6), Padding = new Thickness(16, 9, 16, 10),
-            Child = new TextBlock { Text = text, Foreground = Br("#1E1C1A"), FontWeight = FontWeights.SemiBold, FontSize = 13 },
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 6, Opacity = 0.4 },
-            Opacity = 0,
+            Background = Br("#1A212D"), BorderBrush = bad ? BadBrush : Br("#3A2A18"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 11, 18, 11),
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new TextBlock { Text = bad ? "\uE7BA" : "\uE73E", FontFamily = (FontFamily)FindResource("Ico"), Foreground = bad ? BadBrush : EmberBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 11, 0) },
+                    new TextBlock { Text = text, Foreground = TextBrush, VerticalAlignment = VerticalAlignment.Center },
+                },
+            },
+            Opacity = 0, RenderTransform = new TranslateTransform(0, 18),
         };
         toastHost.Children.Clear();
         toastHost.Children.Add(b);
-        var anim = new DoubleAnimationUsingKeyFrames();
-        anim.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(150))));
-        anim.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2600))));
-        anim.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(3000))));
-        b.BeginAnimation(OpacityProperty, anim);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var fade = new DoubleAnimationUsingKeyFrames();
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220)), ease));
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2600))));
+        fade.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(3000))));
+        b.BeginAnimation(OpacityProperty, fade);
+        b.RenderTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(380)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 } });
     }
 
     /// In-window confirm dialog (a MessageBox would break the look).
@@ -356,10 +391,9 @@ public partial class MainWindow : Window
         buttons.Children.Add(Btn(yes, null, true, () => Done(true)));
         var box = new Border
         {
-            Background = (Brush)FindResource("Panel"), BorderBrush = (Brush)FindResource("Line2"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
+            Style = (Style)FindResource("CardBox"), BorderBrush = Br("#2C3646"),
             Width = 440, Padding = new Thickness(26, 22, 26, 22), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            Child = new StackPanel { Children = { new TextBlock { Text = title, FontSize = 18 }, new TextBlock { Text = text, Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 10, 0, 0), FontSize = 13.5 }, buttons } },
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 10, Opacity = 0.5 },
+            Child = new StackPanel { Children = { new TextBlock { Text = title, Style = (Style)FindResource("H2"), FontSize = 18 }, new TextBlock { Text = text, Style = (Style)FindResource("SubText"), Margin = new Thickness(0, 10, 0, 0), FontSize = 13.5 }, buttons } },
         };
         modalHost.Children.Clear();
         modalHost.Children.Add(box);
@@ -403,6 +437,10 @@ public partial class MainWindow : Window
         int i = list.FindIndex(t => t.Id == App.Engine.Theme.Id);
         App.SetTheme(list[((i < 0 ? 0 : i) + d + list.Count) % list.Count]);
         UpdateThemeCard();
+        ThemeInfo.RenderTransform = new TranslateTransform(d * 12, 0);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        ThemeInfo.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+        ThemeInfo.RenderTransform.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(d * 12, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
     }
 
     void UpdateThemeCard()
@@ -418,8 +456,10 @@ public partial class MainWindow : Window
         var e = App.Engine;
         ConnText.Text = e.Status;
         ConnDot.Fill = e.Connected ? OkBrush : e.Searching ? DimBrush : BadBrush;
+        MiniName.Text = T(App.Engine.Theme.Name);
+        MiniStatus.Text = e.Connected ? L.F("{0:0} fps on {1}", e.Fps, e.Port) : e.Status;
         FpsText.Text = L.F("{0:0} fps", e.Fps);
-        BwText.Text = L.F("{0:0} KB/s, {1:0}% of the link", e.KBps, e.KBps * 1024 / FrameDiff.Bandwidth * 100);
+        BwText.Text = string.Format(L.Culture, "{0:0} KB/s ({1:0}%)", e.KBps, e.KBps * 1024 / FrameDiff.Bandwidth * 100);
         if (BlankSwitch.IsChecked != e.Blank) BlankSwitch.IsChecked = e.Blank;
 
         var s = App.Sensors.Current;
@@ -448,11 +488,11 @@ public partial class MainWindow : Window
 
     void StatusRow(string label, bool ok, string value)
     {
-        var g = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        var g = new Grid { Margin = new Thickness(0, 0, 0, 11) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition());
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        g.Children.Add(new Border { Width = 7, Height = 7, CornerRadius = new CornerRadius(3.5), Background = ok ? OkBrush : BadBrush, VerticalAlignment = VerticalAlignment.Center });
+        g.Children.Add(new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(4), Background = ok ? OkBrush : BadBrush, VerticalAlignment = VerticalAlignment.Center });
         var l = new TextBlock { Text = label, Margin = new Thickness(11, 0, 0, 0) };
         Grid.SetColumn(l, 1);
         g.Children.Add(l);
@@ -496,7 +536,7 @@ public partial class MainWindow : Window
         public required SKBitmap Frame;
         public required WriteableBitmap Bmp;
         public required Border Bezel;
-        public required TextBlock State;
+        public required Border State;
     }
 
     readonly List<Thumb> thumbs = new();
@@ -540,35 +580,53 @@ public partial class MainWindow : Window
 
     FrameworkElement ThemeCard(Theme t, Renderer r, SKBitmap frame, WriteableBitmap bmp)
     {
-        var img = new Image { Source = bmp, Width = 276, Height = 184, Stretch = Stretch.Fill };
+        var img = new Image { Source = bmp, Width = 270, Height = 180, Stretch = Stretch.Fill, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1) };
         RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
-        var bezel = new Border
-        {
-            Background = Br("#0C0B0A"), Padding = new Thickness(9), CornerRadius = new CornerRadius(7), BorderThickness = new Thickness(1.5), BorderBrush = LineBrush,
-            Child = new Border { Background = Brushes.Black, Child = img }, Cursor = Cursors.Hand, ToolTip = T("Show on the screen"),
-        };
-        void Use() { App.SetTheme(t); MarkActive(); UpdateThemeCard(); Toast(L.F("{0} is on the screen", T(t.Name))); }
-        bezel.MouseLeftButtonUp += (_, _) => Use();
-        bezel.MouseEnter += (_, _) => { if (App.Engine.Theme.Id != t.Id) bezel.BorderBrush = (Brush)FindResource("Line2"); };
-        bezel.MouseLeave += (_, _) => MarkActive();
+        var shot = new Border { CornerRadius = new CornerRadius(12), Child = img, Background = Brushes.Black, Cursor = Cursors.Hand, ToolTip = T("Show on the screen") };
+        shot.Clip = new RectangleGeometry(new Rect(0, 0, 270, 180), 12, 12);
 
-        var state = new TextBlock { FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
-        var head = new Grid { Margin = new Thickness(2, 14, 2, 0) };
+        var state = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(9, 3, 9, 4), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        var head = new Grid { Margin = new Thickness(4, 14, 2, 0) };
         head.Children.Add(new TextBlock { Text = T(t.Name), Style = (Style)FindResource("H2") });
         head.Children.Add(state);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 10, 0, 0) };
-        actions.Children.Add(Link(T("Edit"), () => OpenEditor(t)));
-        actions.Children.Add(Link(T("Duplicate"), () => DuplicateTheme(t)));
-        if (!t.BuiltIn) actions.Children.Add(Link(T("Delete"), () => _ = DeleteTheme(t)));
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
+        actions.Children.Add(Btn(T("Edit"), "\uE70F", false, () => OpenEditor(t)));
+        actions.Children.Add(Gap());
+        actions.Children.Add(Btn("", "\uE8C8", false, () => DuplicateTheme(t), T("Duplicate")));
+        if (!t.BuiltIn)
+        {
+            actions.Children.Add(Gap());
+            actions.Children.Add(Btn("", "\uE74D", false, () => _ = DeleteTheme(t), T("Delete")));
+        }
 
-        var sp = new StackPanel { Width = 296, Margin = new Thickness(0, 0, 30, 34) };
-        sp.Children.Add(bezel);
+        var sp = new StackPanel();
+        sp.Children.Add(shot);
         sp.Children.Add(head);
-        sp.Children.Add(new TextBlock { Text = t.Description is { } d ? T(d) : T("Your theme"), Style = (Style)FindResource("SubText"), Margin = new Thickness(2, 4, 2, 0), Height = 36, TextTrimming = TextTrimming.WordEllipsis });
+        sp.Children.Add(new TextBlock { Text = t.Description is { } d ? T(d) : T("Your theme"), Style = (Style)FindResource("SubText"), Margin = new Thickness(4, 5, 4, 0), Height = 40, TextTrimming = TextTrimming.WordEllipsis });
         sp.Children.Add(actions);
-        thumbs.Add(new Thumb { Theme = t, R = r, Frame = frame, Bmp = bmp, Bezel = bezel, State = state });
-        return sp;
+        var card = new Border
+        {
+            Style = (Style)FindResource("CardBox"), Padding = new Thickness(13), Margin = new Thickness(0, 0, 18, 18), Width = 298, Child = sp, BorderThickness = new Thickness(1.5),
+            RenderTransform = new TranslateTransform(), Tag = t.Id,
+        };
+        void Use() { App.SetTheme(t); MarkActive(); UpdateThemeCard(); Toast(L.F("{0} is on the screen", T(t.Name))); }
+        shot.MouseLeftButtonUp += (_, _) => Use();
+        head.MouseLeftButtonUp += (_, _) => Use();
+        card.MouseEnter += (_, _) => { Hover(card, img, true); if (App.Engine.Theme.Id != t.Id) card.BorderBrush = Br("#3A4658"); };
+        card.MouseLeave += (_, _) => { Hover(card, img, false); MarkActive(); };
+        thumbs.Add(new Thumb { Theme = t, R = r, Frame = frame, Bmp = bmp, Bezel = card, State = state });
+        return card;
+    }
+
+    static void Hover(Border card, Image img, bool on)
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var d = TimeSpan.FromMilliseconds(on ? 220 : 320);
+        card.RenderTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(on ? -3 : 0, d) { EasingFunction = ease });
+        var st = (ScaleTransform)img.RenderTransform;
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(on ? 1.03 : 1, d) { EasingFunction = ease });
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(on ? 1.03 : 1, d) { EasingFunction = ease });
     }
 
     void MarkActive()
@@ -576,9 +634,11 @@ public partial class MainWindow : Window
         foreach (var th in thumbs)
         {
             bool active = th.Theme.Id == App.Engine.Theme.Id;
-            th.Bezel.BorderBrush = active ? EmberBrush : LineBrush;
-            th.State.Text = active ? T("On the screen") : th.Theme.BuiltIn ? "" : T("Yours");
-            th.State.Foreground = active ? EmberBrush : DimBrush;
+            th.Bezel.BorderBrush = active ? Br("#FF9A3D") : LineBrush;
+            th.Bezel.Background = active ? Br("#16140F") : (Brush)FindResource("Card");
+            var badge = (Border)th.State;
+            badge.Background = active ? (Brush)FindResource("Ember") : th.Theme.BuiltIn ? Brushes.Transparent : Br("#14FFFFFF");
+            badge.Child = new TextBlock { Text = active ? T("On the screen") : th.Theme.BuiltIn ? "" : T("Yours"), FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = active ? Br("#1A1208") : SubBrush };
         }
     }
 
@@ -619,7 +679,7 @@ public partial class MainWindow : Window
     // ---------- sensors page ----------
 
     readonly List<(SensorInfo Info, TextBlock Value, FrameworkElement Row)> sensorRows = new();
-    readonly List<(TextBlock Header, StackPanel Rows)> sensorGroups = new();
+    readonly List<(Border Panel, StackPanel Rows)> sensorGroups = new();
 
     void BuildSensors()
     {
@@ -629,7 +689,7 @@ public partial class MainWindow : Window
         var all = Sensors.Catalog.Concat(App.Sensors.Raw).ToList();
         foreach (var group in all.GroupBy(x => x.Group))
         {
-            var header = new TextBlock { Text = T(group.Key), Style = (Style)FindResource("Head"), Margin = new Thickness(10, 22, 0, 6) };
+            var header = new TextBlock { Text = T(group.Key), Style = (Style)FindResource("H2"), Margin = new Thickness(12, 0, 0, 8) };
             var rows = new StackPanel();
             foreach (var info in group)
             {
@@ -637,24 +697,25 @@ public partial class MainWindow : Window
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320) });
                 g.ColumnDefinitions.Add(new ColumnDefinition());
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
-                var b = new Border { Padding = new Thickness(10, 7, 10, 7), Child = g, Background = Brushes.Transparent, Cursor = Cursors.Hand, BorderBrush = Br("#2F2C29"), BorderThickness = new Thickness(0, 0, 0, 1) };
-                b.MouseEnter += (_, _) => b.Background = RaisedBrush;
+                var b = new Border { Padding = new Thickness(12, 8, 12, 8), Child = g, Background = Brushes.Transparent, Cursor = Cursors.Hand, CornerRadius = new CornerRadius(10) };
+                b.MouseEnter += (_, _) => b.Background = HoverFill;
                 b.MouseLeave += (_, _) => b.Background = Brushes.Transparent;
                 var key = info.Key;
                 b.MouseLeftButtonUp += (_, _) => { Clipboard.SetText(key); Toast(L.F("Copied {0}", key)); };
+                System.Windows.Documents.Typography.SetNumeralAlignment(g, FontNumeralAlignment.Tabular);
                 g.Children.Add(new TextBlock { Text = T(info.Label), TextTrimming = TextTrimming.CharacterEllipsis });
                 var k = new TextBlock { Text = info.Key, FontSize = 12.5, Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 Grid.SetColumn(k, 1);
                 g.Children.Add(k);
-                var v = new TextBlock { HorizontalAlignment = HorizontalAlignment.Right };
+                var v = new TextBlock { HorizontalAlignment = HorizontalAlignment.Right, FontWeight = FontWeights.SemiBold, Foreground = EmberBrush };
                 Grid.SetColumn(v, 2);
                 g.Children.Add(v);
                 rows.Children.Add(b);
                 sensorRows.Add((info, v, b));
             }
-            SensorList.Children.Add(header);
-            SensorList.Children.Add(rows);
-            sensorGroups.Add((header, rows));
+            var panel = new Border { Style = (Style)FindResource("CardBox"), Padding = new Thickness(10, 16, 10, 10), Margin = new Thickness(0, 0, 0, 14), Child = new StackPanel { Children = { header, rows } } };
+            SensorList.Children.Add(panel);
+            sensorGroups.Add((panel, rows));
         }
         UpdateSensors();
         FilterSensors();
@@ -701,30 +762,37 @@ public partial class MainWindow : Window
         foreach (var (info, _, row) in sensorRows)
             row.Visibility = q.Length == 0 || T(info.Label).Contains(q, StringComparison.OrdinalIgnoreCase) || info.Key.Contains(q, StringComparison.OrdinalIgnoreCase) || T(info.Group).Contains(q, StringComparison.OrdinalIgnoreCase)
                 ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var (header, rows) in sensorGroups)
-            header.Visibility = rows.Visibility = rows.Children.Cast<UIElement>().Any(c => c.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var (panel, rows) in sensorGroups)
+            panel.Visibility = rows.Children.Cast<UIElement>().Any(c => c.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ---------- settings page ----------
 
-    void Section(string title) => SettingsPanel.Children.Add(new TextBlock { Text = title, FontSize = 18, Margin = new Thickness(0, 30, 0, 10) });
+    StackPanel? section;
+
+    void Section(string title)
+    {
+        section = new StackPanel();
+        var panel = new Border { Style = (Style)FindResource("CardBox"), Padding = new Thickness(24, 20, 24, 8), Margin = new Thickness(0, 0, 0, 14), Child = new StackPanel { Children = { new TextBlock { Text = title, Style = (Style)FindResource("H2"), Margin = new Thickness(0, 0, 0, 6) }, section } } };
+        SettingsPanel.Children.Add(panel);
+    }
 
     /// Label (and an optional line of explanation) on the left, the control on the right.
     void Row(string label, string? hint, FrameworkElement control)
     {
-        var g = new Grid { Margin = new Thickness(0, 0, 0, 0), MinHeight = 46 };
+        var g = new Grid { MinHeight = 52 };
         g.ColumnDefinitions.Add(new ColumnDefinition());
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 8, 24, 8) };
-        left.Children.Add(new TextBlock { Text = label });
+        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 10, 24, 10) };
+        left.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.Medium });
         if (hint != null) left.Children.Add(new TextBlock { Text = hint, Style = (Style)FindResource("SubText"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
         g.Children.Add(left);
         control.VerticalAlignment = VerticalAlignment.Center;
         control.Margin = new Thickness(0);
-        if (control is ComboBox) control.Width = 280;
+        if (control is ComboBox) control.Width = 300;
         Grid.SetColumn(control, 1);
         g.Children.Add(control);
-        SettingsPanel.Children.Add(new Border { Child = g, BorderBrush = Br("#2F2C29"), BorderThickness = new Thickness(0, 0, 0, 1) });
+        section!.Children.Add(new Border { Child = g, BorderBrush = RowLine, BorderThickness = new Thickness(0, section.Children.Count == 0 ? 0 : 1, 0, 0) });
     }
 
     static CheckBox Toggle(bool value, Action<bool> changed, Style style)

@@ -237,6 +237,7 @@ public sealed class Engine : IDisposable
     public volatile bool PreviewWanted;
     public volatile string Status = L.T("Looking for the screen…");
     public volatile bool Connected, Searching = true;
+    public volatile string Port = "";
     public volatile float Fps, KBps;
     public volatile float RenderMs;
 
@@ -450,6 +451,7 @@ public sealed class Engine : IDisposable
                 Begin(Clock.Now);
                 Connected = true;
                 Searching = false;
+                Port = port;
                 Status = L.F("Connected on {0}", port);
                 Log.Info($"connected {port}");
                 return;

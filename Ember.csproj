@@ -29,6 +29,7 @@
   <ItemGroup>
     <EmbeddedResource Include="themes\*.json" LogicalName="theme.%(Filename).json" />
     <Resource Include="app.ico" Condition="Exists('app.ico')" />
+    <Resource Include="fonts\*.ttf" />
   </ItemGroup>
 
 </Project>

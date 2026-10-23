@@ -58,7 +58,7 @@ Eight come built in. Every one of them was tuned against the link budget describ
 
 <img src="docs/app-screen.png" alt="Ember's Screen page: a live mirror of the panel with theme, brightness and sensor status">
 
-The Screen page mirrors the panel live, with the panel's own light spilling onto the background. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable.
+The Screen page mirrors the panel live. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable. The sidebar keeps a small live copy of the panel on every page.
 
 <img src="docs/app-themes.png" alt="Ember's theme gallery with live thumbnails">
 
@@ -66,7 +66,7 @@ The gallery thumbnails run on your own sensor data. Click one to put it on the s
 
 <img src="docs/app-editor.png" alt="Ember's layout editor with a gauge selected">
 
-The editor is a canvas with layers. Drag things, resize them, let them snap to each other's edges and centres, and change any property on the right. Everything can be undone. Turn on *Live on the screen* and each change lands on the panel while you make it.
+The editor is a canvas with layers. Drag things, resize them, let them snap to each other's edges and centres, and change any property on the right. Everything can be undone. Turn on *Live on the screen* and each change lands on the panel while you make it. The sidebar folds into an icon rail while you edit, so the canvas gets the room.
 
 The tray icon has the rest: theme, brightness, turn the screen off, quit. When Windows turns the monitors off or the PC goes to sleep, the panel goes dark too.
 
@@ -109,7 +109,7 @@ Measured on a Ryzen 5 9600X with an RTX 5060 Ti, window closed, default theme:
 | Memory | about 70 MB |
 | DPC and interrupt time | no measurable change |
 
-With the window open it uses around 1% while it is on screen. Minimised or closed, the window stops drawing.
+With the window open it uses around 2% while it is on screen, most of it for the live preview. Minimised or closed, the window stops drawing.
 
 If you write your own monitoring tool, one thing worth knowing: LibreHardwareMonitor asks NVIDIA for PCIe throughput on every update, two NVML calls that each wait about 30 ms in the driver. Ember switches that off.
 
