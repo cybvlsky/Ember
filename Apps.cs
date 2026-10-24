@@ -54,6 +54,23 @@ public sealed class AppWatch : IDisposable
         thread?.Join(2000);
     }
 
+    /// The theme in the editor: its app values are read too, so the canvas shows real ones.
+    public static volatile Theme? Editing;
+
+    /// Whether a theme shows Claude or Spotify values, so they are read for it even with the app screens off.
+    public static (bool Claude, bool Spotify) Uses(Theme? t)
+    {
+        bool c = false, sp = false;
+        if (t != null)
+            foreach (var w in t.Widgets.ToArray()) // the editor's draft changes under us
+            {
+                var all = $"{w.Sensor} {w.Text} {w.Src}";
+                c |= all.Contains("claude.");
+                sp |= all.Contains("spotify.") || w.Src == "@art";
+            }
+        return (c, sp);
+    }
+
     void Loop()
     {
         double nextScan = 0;
@@ -61,9 +78,12 @@ public sealed class AppWatch : IDisposable
         {
             var v = new Dictionary<string, double>();
             var s = new Dictionary<string, string>();
+            var (onTheme, onTheme2) = Uses(App.Engine?.Theme);
+            var (inEditor, inEditor2) = Uses(Editing);
+            bool wantClaude = cfg.ClaudeApp || onTheme || inEditor, wantSpotify = cfg.SpotifyApp || onTheme2 || inEditor2;
             try
             {
-                if (cfg.ClaudeApp)
+                if (wantClaude)
                 {
                     // The logs are read every few seconds; the countdowns are recomputed every second from what was read.
                     if (Clock.Now >= nextScan)
@@ -78,7 +98,7 @@ public sealed class AppWatch : IDisposable
                 }
             }
             catch (Exception e) { Log.Once("claude " + e.GetType().Name + ": " + e.Message, e); }
-            try { if (cfg.SpotifyApp) media.Poll(v, s); }
+            try { if (wantSpotify) media.Poll(v, s); }
             catch (Exception e) { Log.Once("media " + e.GetType().Name + ": " + e.Message, e); }
             Values = v;
             Strings = s;
@@ -99,7 +119,7 @@ public sealed class AppWatch : IDisposable
         s.S["claude.resetText"] = L.F("resets at {0:HH:mm}", new DateTime(2026, 1, 1, 18, 40, 0));
         s.S["claude.limit"] = L.T("estimated from the last limit hit");
         s.S["claude.plan.name"] = "Max 5x";
-        s.S["claude.value"] = L.F("{0:0.0}× the {1} price", 2.1, "Max 5x");
+        s.S["claude.valueText"] = L.F("{0:0.0}× the {1} price", 2.1, "Max 5x");
         s.S["claude.model"] = "Opus 5.5";
         s.S["claude.status"] = L.T("working");
         V("spotify.active", 1); V("spotify.playing", 1); V("spotify.pos", 83); V("spotify.dur", 227); V("spotify.progress", 83 / 2.27);
@@ -143,16 +163,26 @@ public sealed class AppWatch : IDisposable
     }
 }
 
-/// Picks what the panel shows next: the theme for `themeSecs`, then each active app for `appSecs`, then the theme again.
+/// Picks what the panel shows next. `available`: app screens that can be shown (switched on, with something to show),
+/// `active`: those in use right now, both in screen order. The shortcut steps theme > each available app > theme;
+/// automatic rotation shows the theme for `themeSecs`, then each active app for `appSecs`.
 public static class Rotation
 {
-    public static string Next(string current, double held, List<string> apps, double themeSecs, double appSecs)
+    public static string Pick(string current, double held, bool step, bool auto, List<string> available, List<string> active, double themeSecs, double appSecs)
     {
-        if (current != "theme" && !apps.Contains(current)) return "theme";
-        if (current == "theme") return apps.Count > 0 && held >= themeSecs ? apps[0] : "theme";
+        if (step)
+        {
+            int i = current == "theme" ? -1 : available.IndexOf(current);
+            return i + 1 < available.Count ? available[i + 1] : "theme";
+        }
+        if (current != "theme" && !available.Contains(current)) return "theme";
+        if (!auto) return current;
+        if (current == "theme") return active.Count > 0 && held >= themeSecs ? active[0] : "theme";
         if (held < appSecs) return current;
-        int i = apps.IndexOf(current);
-        return i + 1 < apps.Count ? apps[i + 1] : "theme";
+        // A screen picked by hand need not be active; carry on with the active ones after it.
+        int k = available.IndexOf(current);
+        foreach (var a in active) if (available.IndexOf(a) > k) return a;
+        return "theme";
     }
 }
 
@@ -392,7 +422,7 @@ public sealed class ClaudeUsage
         v["claude.plan"] = plan.Price;
         v["claude.value"] = month / plan.Price;
         s["claude.plan.name"] = plan.Name;
-        s["claude.value"] = L.F("{0:0.0}× the {1} price", month / plan.Price, plan.Name);
+        s["claude.valueText"] = L.F("{0:0.0}× the {1} price", month / plan.Price, plan.Name);
         s["claude.model"] = list.Count > 0 ? Pretty(list[^1].Model) : "Claude";
         s["claude.status"] = busy ? L.T("working") : sessions > 0 ? L.T("waiting") : desktop ? L.T("desktop app") : L.T("idle");
     }
@@ -413,6 +443,7 @@ sealed class MediaWatch
         if (session == null) return;
         var props = session.TryGetMediaPropertiesAsync().AsTask().GetAwaiter().GetResult();
         if (string.IsNullOrWhiteSpace(props.Title)) return;
+        v["spotify.present"] = 1;
         bool playing = session.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
         // A paused track stays in the rotation for two minutes, then the theme has the panel back.
         if (playing) pausedAt = double.NaN;

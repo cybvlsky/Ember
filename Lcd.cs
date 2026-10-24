@@ -11,6 +11,8 @@ namespace Ember;
 /// Turing Smart Screen 3.5" (hardware revision A, USB 1a86:5722, serial "USB35INCHIPSV2").
 /// Protocol: 6-byte commands carrying four packed 10-bit coordinates; bitmaps follow as raw RGB565 little-endian.
 /// Measured on the real unit: ~157 KiB/s no matter the baud rate or flow control, so a full 480x320 frame takes ~1.9 s.
+/// Writes block at that rate and cost nothing extra each: 300 rectangles of 16x8 move pixels as fast as one full frame,
+/// with the command and the pixels as separate writes or as one. Several commands in a single write crash the firmware.
 /// Raw Win32 handle instead of SerialPort: no hidden event thread that can blow up when the device is unplugged.
 public sealed class TuringLcd : IDisposable
 {

@@ -68,7 +68,7 @@ public partial class MainWindow : Window
         timer.Tick += (_, _) => Tick();
         Loaded += (_, _) => OnLoaded();
         Closing += (_, e) => { if (EditorDirty && !closeConfirmed) { e.Cancel = true; _ = ConfirmClose(); } };
-        Closed += (_, _) => { timer.Stop(); App.Engine.PreviewWanted = false; StopLiveEdit(); DisposeGallery(); DisposeEditor(); };
+        Closed += (_, _) => { timer.Stop(); App.Engine.PreviewWanted = false; App.Engine.HoldTheme = false; AppWatch.Editing = null; StopLiveEdit(); DisposeGallery(); DisposeEditor(); };
         PreviewKeyDown += OnKey;
         Show("screen");
     }
@@ -102,7 +102,7 @@ public partial class MainWindow : Window
     /// Icon rail or full sidebar: whatever the person chose last, otherwise narrow windows and the editor get the rail.
     void SetSidebar(bool animate)
     {
-        bool want = pinned ?? (page == "editor" || ActualWidth is > 0 and < 1200);
+        bool want = pinned ?? (page == "editor" || ActualWidth is > 0 and < 1040);
         if (want == collapsed && SideBar.Width is 48 or 280) return;
         collapsed = want;
         var d = TimeSpan.FromMilliseconds(animate ? 200 : 0);
@@ -414,6 +414,9 @@ public partial class MainWindow : Window
         SleepSwitch.IsChecked = App.Cfg.SleepWithMonitors;
         SleepSwitch.Checked += (_, _) => { App.Cfg.SleepWithMonitors = true; App.Cfg.Save(); App.Engine.Poke(); };
         SleepSwitch.Unchecked += (_, _) => { App.Cfg.SleepWithMonitors = false; App.Cfg.Save(); App.Engine.Poke(); };
+        TrafficSwitch.IsChecked = App.Engine.ShowTraffic;
+        TrafficSwitch.Checked += (_, _) => App.Engine.ShowTraffic = true;
+        TrafficSwitch.Unchecked += (_, _) => App.Engine.ShowTraffic = false;
         BlankSwitch.IsChecked = App.Engine.Blank;
         BlankSwitch.Checked += (_, _) => App.Engine.Blank = true;
         BlankSwitch.Unchecked += (_, _) => App.Engine.Blank = false;
@@ -524,6 +527,7 @@ public partial class MainWindow : Window
     {
         public required Theme Theme;
         public required Renderer R;
+        public byte[]? Last;
         public required SKBitmap Frame;
         public required WriteableBitmap Bmp;
         public required Border Bezel;
@@ -559,6 +563,11 @@ public partial class MainWindow : Window
         foreach (var th in thumbs)
         {
             using (var c = new SKCanvas(th.Frame)) th.R.Render(c, snap, 0.133, now);
+            // Most thumbnails sit still between sensor samples; skipping those saves a 600 KB texture upload each.
+            var px = th.Frame.GetPixelSpan();
+            if (th.Last != null && px.SequenceEqual(th.Last)) continue;
+            th.Last ??= new byte[px.Length];
+            px.CopyTo(th.Last);
             th.Bmp.WritePixels(new Int32Rect(0, 0, W, H), th.Frame.GetPixels(), th.Frame.ByteCount, th.Frame.RowBytes);
         }
     }
@@ -729,6 +738,8 @@ public partial class MainWindow : Window
         return unit switch
         {
             "B/s" => Renderer.Format(v, "rate"),
+            "$" => Renderer.Format(v, "usd"),
+            "tok" => Renderer.Format(v, "tok"),
             "MHz" => v.ToString("0", cu) + " MHz",
             "%" or "°C" or "W" or "RPM" => v.ToString(v < 10 ? "0.0" : "0", cu) + " " + unit,
             _ => v.ToString(Math.Abs(v) < 10 ? "0.00" : "0.0", cu) + (unit.Length > 0 ? " " + unit : ""),
@@ -880,11 +891,52 @@ public partial class MainWindow : Window
         AppCard("spotify", "Spotify", T("Takes turns with the theme while music is playing. Cover, title and progress come from the Windows media controls."),
             cfg.SpotifyApp, v => { cfg.SpotifyApp = v; cfg.Save(); App.Engine.Poke(); UpdateApps(); });
 
-        Section(T("Timing"), AppsPanel);
+        Section(T("Switching"), AppsPanel);
+        Row(T("Next screen shortcut"), T("Works in every program: the theme, then each app screen, then the theme again."), HotkeyBox());
+        Row(T("Switch on its own"), T("Off: app screens only come up with the shortcut."), Toggle(cfg.AutoRotate, v => { cfg.AutoRotate = v; cfg.Save(); }, (Style)FindResource("Switch")));
         Row(T("Theme"), T("How long the theme stays between app screens."),
             Chips(new[] { (10, "10 s"), (15, "15 s"), (30, "30 s"), (60, "60 s") }, cfg.ThemeSecs, v => { cfg.ThemeSecs = v; cfg.Save(); }));
         Row(T("Each app"), null, Chips(new[] { (5, "5 s"), (10, "10 s"), (15, "15 s"), (30, "30 s") }, cfg.AppSecs, v => { cfg.AppSecs = v; cfg.Save(); }));
         UpdateApps();
+    }
+
+    /// Click, then press the keys. Esc keeps the old shortcut, Backspace removes it.
+    Button HotkeyBox()
+    {
+        var b = new Button { Style = (Style)FindResource("Ghost"), MinWidth = 180 };
+        bool capturing = false;
+        void Show(string? text = null) => b.Content = text ?? (App.Cfg.NextScreenKey.Length > 0 ? Hotkeys.Display(App.Cfg.NextScreenKey) : T("Not set"));
+        Show();
+        b.Click += (_, _) => { capturing = true; Show(T("Press the keys")); b.Focus(); };
+        b.LostKeyboardFocus += (_, _) => { if (capturing) { capturing = false; Show(); } };
+        b.PreviewKeyDown += (_, e) =>
+        {
+            if (!capturing) return;
+            e.Handled = true;
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
+            capturing = false;
+            var mods = Keyboard.Modifiers;
+            if (key == Key.Escape) { Show(); return; }
+            string spec = "";
+            if (!(key is Key.Back or Key.Delete && mods == ModifierKeys.None))
+            {
+                if ((mods & ~ModifierKeys.Shift) == 0 && key is not (>= Key.F1 and <= Key.F24)) { Toast(T("Add Ctrl, Alt or Win to the key."), true); Show(); return; }
+                spec = Hotkeys.Make(mods.HasFlag(ModifierKeys.Control), mods.HasFlag(ModifierKeys.Alt), mods.HasFlag(ModifierKeys.Shift), mods.HasFlag(ModifierKeys.Windows),
+                    (System.Windows.Forms.Keys)KeyInterop.VirtualKeyFromKey(key));
+            }
+            var old = App.Cfg.NextScreenKey;
+            App.Cfg.NextScreenKey = spec;
+            if (App.ApplyHotkey()) App.Cfg.Save();
+            else
+            {
+                App.Cfg.NextScreenKey = old;
+                App.ApplyHotkey();
+                Toast(L.F("{0} is taken by another program.", Hotkeys.Display(spec)), true);
+            }
+            Show();
+        };
+        return b;
     }
 
     /// Heading, then a card with a live preview of the app screen in the current theme, what it does and the switch.

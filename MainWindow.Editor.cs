@@ -83,6 +83,7 @@ public partial class MainWindow
                      ("text", "Text", "\uE8D2"), ("value", "Value", "\uE9CA"), ("gauge", "Gauge", "\uEC4A"), ("ring", "Ring", "\uEA3A"),
                      ("bar", "Bar", "\uE9E9"), ("graph", "Graph", "\uE9D2"), ("cores", "Cores", "\uE950"), ("icon", "Icon", "\uE734"),
                      ("rect", "Rectangle", "\uE739"), ("glow", "Glow", "\uE706"), ("image", "Image", "\uEB9F"), ("clock", "Clock", "\uE917"),
+                     ("nowplaying", "Now playing", "\uE8D6"), ("cover", "Album cover", "\uE93C"), ("claude", "Claude usage", "\uE8BD"),
                  })
         {
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
@@ -159,6 +160,7 @@ public partial class MainWindow
     {
         commitTimer.Stop();
         draft = t;
+        AppWatch.Editing = t;
         sel = -1;
         hover = -1;
         undo.Clear();
@@ -194,6 +196,24 @@ public partial class MainWindow
         if (draft == null) return;
         EditorName.Text = T(draft.Name);
         EditorState.Text = draft.BuiltIn ? T("Built in. Saving makes your own copy.") : EditorDirty ? T("Unsaved changes") : "";
+        UpdateLinkCost();
+    }
+
+    int costRun;
+
+    /// Simulates the draft on a copy in the background; only the newest run gets to show its result.
+    void UpdateLinkCost()
+    {
+        if (draft == null) return;
+        var copy = draft.Clone();
+        int run = ++costRun;
+        System.Threading.Tasks.Task.Run(() => FrameDiff.LinkUse(copy)).ContinueWith(r =>
+        {
+            if (run != costRun || r.IsFaulted) return;
+            double pct = r.Result / FrameDiff.Bandwidth * 100;
+            LinkCost.Text = L.F("Link {0:0}%", pct);
+            LinkCost.Foreground = pct >= 80 ? Br("#FFC857") : SubBrush;
+        }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     void StopLiveEdit()
@@ -277,6 +297,7 @@ public partial class MainWindow
         t.Id = draft!.Id;
         t.BuiltIn = draft.BuiltIn;
         draft = t;
+        AppWatch.Editing = t;
         if (sel >= draft.Widgets.Count) sel = -1;
         editRDirty = true;
         RebuildLayers();
@@ -643,9 +664,50 @@ public partial class MainWindow
 
     static Widget JsonClone(Widget w) => System.Text.Json.JsonSerializer.Deserialize<Widget>(System.Text.Json.JsonSerializer.Serialize(w, Theme.Json), Theme.Json)!;
 
+    /// Ready-made groups for the app values: a card with everything laid out, to move and restyle like any widgets.
+    static List<Widget>? Block(string kind) => kind switch
+    {
+        "nowplaying" =>
+        [
+            new() { Type = "rect", Name = "Now playing card", X = 40, Y = 80, W = 400, H = 160, Radius = 10, Color = "card" },
+            new() { Type = "rect", Name = "Cover backdrop", X = 56, Y = 96, W = 128, H = 128, Radius = 6, Color = "track" },
+            new() { Type = "image", Name = "Cover", X = 56, Y = 96, W = 128, H = 128, Radius = 6, Src = "@art" },
+            new() { Type = "text", Name = "State", X = 200, Y = 104, Text = "{spotify.state}", Size = 12, Weight = 600, Color = "a1" },
+            new() { Type = "text", Name = "Title", X = 200, Y = 124, W = 224, Text = "{spotify.title}", Size = 20, Weight = 600, Color = "text", Mode = "ellipsis" },
+            new() { Type = "text", Name = "Artist", X = 200, Y = 154, W = 224, Text = "{spotify.artist}", Size = 14, Color = "sub", Mode = "ellipsis" },
+            new() { Type = "bar", Name = "Progress", X = 200, Y = 196, W = 224, H = 4, Radius = 2, Sensor = "spotify.progress", Color = "a1", Track = "track" },
+            new() { Type = "text", Name = "Position", X = 200, Y = 208, Text = "{spotify.pos:mss}", Size = 11, Color = "dim" },
+            new() { Type = "text", Name = "Length", X = 424, Y = 208, Align = "right", Text = "{spotify.dur:mss}", Size = 11, Color = "dim" },
+        ],
+        "claude" =>
+        [
+            new() { Type = "rect", Name = "Claude card", X = 40, Y = 80, W = 400, H = 160, Radius = 10, Color = "card" },
+            new() { Type = "text", Name = "Claude Code", X = 56, Y = 94, Text = "Claude Code", Size = 13, Weight = 600, Color = "sub" },
+            new() { Type = "text", Name = "Reset", X = 424, Y = 95, Align = "right", Text = "{claude.resetText}", Size = 11, Color = "dim" },
+            new() { Type = "text", Name = "Session cost", X = 56, Y = 118, Text = "{claude.block.cost:usd}", Size = 36, Weight = 600, Color = "text" },
+            new() { Type = "text", Name = "Session tokens", X = 424, Y = 124, Align = "right", Text = "{claude.block.tokens:tok} tokens", Size = 13, Color = "sub" },
+            new() { Type = "text", Name = "Month", X = 424, Y = 144, Align = "right", Text = "{claude.month.cost:usd} this month", Size = 13, Color = "sub" },
+            new() { Type = "bar", Name = "Limit bar", X = 56, Y = 186, W = 368, H = 6, Radius = 3, Sensor = "claude.block.pct", Color = "a1", Track = "track", Warn = 75, Crit = 90 },
+            new() { Type = "text", Name = "Limit", X = 56, Y = 202, Text = "Session limit {claude.block.pct:0}%", Size = 11, Color = "dim" },
+        ],
+        "cover" => [new() { Type = "image", Name = "Cover", X = 176, Y = 96, W = 128, H = 128, Radius = 6, Src = "@art" }],
+        _ => null,
+    };
+
     void AddWidget(string kind)
     {
         if (draft == null) return;
+        if (Block(kind) is { } block)
+        {
+            draft.Widgets.AddRange(block);
+            sel = draft.Widgets.Count - block.Count;
+            Changed(true);
+            RebuildProps();
+            commitTimer.Stop();
+            Commit();
+            CanvasHost.Focus();
+            return;
+        }
         Widget w = kind switch
         {
             "value" => new() { Type = "text", X = 240, Y = 140, Align = "center", Text = "{cpu.temp:0}°", Sensor = "cpu.temp", Size = 40, Weight = 600, Color = "text", Warn = 80, Crit = 90 },
@@ -775,7 +837,12 @@ public partial class MainWindow
                 break;
             case "image":
                 Props.Children.Add(Caption(T("Image")));
-                TextRow(T("File, relative to the themes folder"), () => w.Src, v => w.Src = v);
+                if (w.Src == "@art") Props.Children.Add(new TextBlock { Text = T("The cover of what Spotify is playing."), Style = (Style)FindResource("SubText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+                else
+                {
+                    TextRow(T("File, relative to the themes folder"), () => w.Src, v => w.Src = v);
+                    Props.Children.Add(Btn(T("Use the album cover"), "\uE93C", false, () => { w.Src = "@art"; Changed(true); RebuildProps(); }));
+                }
                 Slider(T("Corner radius"), 0, 80, w.Radius ?? 0, v => w.Radius = v > 0 ? (float)Math.Round(v) : null);
                 Slider(T("Opacity"), 0.05, 1, w.Opacity ?? 1, v => w.Opacity = v < 0.999 ? (float)v : null, "0.00");
                 break;
@@ -835,7 +902,11 @@ public partial class MainWindow
     static string? DefaultFormat(SensorInfo s) => s.Key switch
     {
         "time" => "HH:mm", "date" => "dddd, d MMMM",
+        "claude.block.left" => "hmm", "spotify.pos" or "spotify.dur" => "mss",
         _ when s.Unit == "B/s" => "rate",
+        _ when s.Unit == "$" => "usd",
+        _ when s.Unit == "tok" => "tok",
+        _ when s.Unit == "×" => "0.0",
         _ when s.Unit is "GB" or "V" or "A" => "0.0",
         _ when s.Unit.Length == 0 => null,
         _ => "0",

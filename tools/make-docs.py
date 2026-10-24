@@ -116,12 +116,42 @@ for i, name in enumerate(["ember.png", "ember.heat.png"]):
     pair.alpha_composite(img, (i * (size[0] + 40), 0))
 pair.save(os.path.join(docs, "bandwidth.png"), optimize=True)
 
+# Smoothness: Ember's sender next to whole frames, over the same simulated link.
+cmp = os.path.join(render, "compare")
+names = sorted(os.listdir(os.path.join(cmp, "ember")))
+label = ImageFont.truetype("seguisb.ttf", 22)
+note = ImageFont.truetype("segoeui.ttf", 18)
+gap, top, bottom = 32, 24, 92
+board = gradient(480 * 2 + gap + 2 * 40, 320 + top + bottom, BG_TOP, BG_BOTTOM)
+d = ImageDraw.Draw(board)
+for i, text in enumerate(["Ember: only what changed", "The whole frame every time"]):
+    x = 40 + i * (480 + gap)
+    d.text((x, top + 320 + 18), text, font=label, fill=(255, 255, 255))
+    d.text((x, top + 320 + 50), ["Values, graph and seconds move as they happen", "Each frame needs 1.9 s, then the next starts"][i], font=note, fill=(154, 154, 154))
+mask = rounded((480, 320), 8)
+frames = []
+for n in names:
+    f = board.copy()
+    for i, side in enumerate(["ember", "full"]):
+        f.paste(Image.open(os.path.join(cmp, side, n)).convert("RGB"), (40 + i * (480 + gap), top), mask)
+    frames.append(f)
+frames[0].save(os.path.join(docs, "compare.webp"), save_all=True, append_images=frames[1:], duration=33, loop=0, quality=82, method=6)
+
+# App screens (Claude Code, Spotify) in the default theme.
+for t in ["claude", "spotify"]:
+    img = frame_at(os.path.join(render, "app-" + t + "-studio.png"), size)
+    pad = 18
+    out = Image.new("RGBA", (size[0] + 2 * pad, size[1] + 2 * pad), (12, 12, 12, 255))
+    out.paste(img, (pad, pad))
+    out.putalpha(rounded(out.size, 16))
+    out.save(os.path.join(docs, "screen-" + t + ".png"), optimize=True)
+
 # The start-up card and the logo.
 frame_at(os.path.join(render, "intro.png"), size).save(os.path.join(docs, "intro.png"), optimize=True)
 Image.open(os.path.join(render, "logo-512.png")).resize((256, 256), Image.LANCZOS).save(os.path.join(docs, "logo.png"), optimize=True)
 
 # The app, at 2x, trimmed to a sensible file size.
-for name in ["screen", "themes", "editor-selected"]:
+for name in ["screen", "themes", "editor-selected", "apps"]:
     img = Image.open(os.path.join(shots, name + ".png")).convert("RGB")
     img = img.resize((1800, round(img.height * 1800 / img.width)), Image.LANCZOS)
     img.save(os.path.join(docs, "app-" + name.replace("-selected", "") + ".png"), optimize=True)

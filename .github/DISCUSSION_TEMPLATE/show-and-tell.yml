@@ -1,0 +1,25 @@
+title: "Theme: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a theme for Ember. In the editor, **Export** saves it as one `.json` file. GitHub doesn't take `.json` attachments, so zip it, together with its `assets` folder if it uses pictures.
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: The Screen page preview or a photo of the panel.
+    validations:
+      required: true
+  - type: textarea
+    id: theme
+    attributes:
+      label: Theme
+      description: Drop the zipped theme here. Anything worth knowing about it, too.
+    validations:
+      required: true
+  - type: input
+    id: fonts
+    attributes:
+      label: Fonts
+      description: Fonts it needs that don't come with Windows, with a link. Leave empty if none.

@@ -6,7 +6,7 @@
 
 <p align="center">
   Windows software for the <b>Turing Smart Screen 3.5"</b> (TURZX) USB display.<br>
-  Animated themes, a layout editor and real CPU and GPU temperatures, without the 1 fps.
+  Animated themes, a layout editor, real CPU and GPU temperatures and screens for Claude Code and Spotify, without the 1 fps.
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ The little 3.5" screens sold as Turing Smart Screen, TURZX or USB35INCHIPSV2 com
 
 The installer isn't code-signed yet, so SmartScreen may say "Windows protected your PC". Click *More info*, then *Run anyway*. Uninstall it from Settings > Apps like anything else. Your own themes stay in `%APPDATA%\Ember`.
 
-Windows 10 or 11, 64-bit.
+Windows 10 (version 2004 or newer) or 11, 64-bit.
 
 **Which screen.** Ember talks to the Turing Smart Screen 3.5" revision A: USB ID `1a86:5722`, shows up as a COM port, sold under the Turing and TURZX names. The 2.1", 5" and 8.8" models and the XuanFang revision B speak other protocols and don't work yet. Close the vendor app first, only one program can hold the port.
 
@@ -61,11 +61,29 @@ Nine come built in. Every one of them was tuned against the link budget describe
   </tr>
 </table>
 
+Got one of your own? Post it in [Share your themes](https://github.com/cybvlsky/Ember/discussions/1).
+
+## App screens
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screen-claude.png" alt="The Claude Code screen: cost and tokens of the current five-hour session, when it resets, the month at API prices against the plan price, the session limit"></td>
+    <td width="50%"><img src="docs/screen-spotify.png" alt="The Spotify screen: album cover, title, artist, album and a progress bar in the cover's colour"></td>
+  </tr>
+</table>
+
+Turn them on under *Apps*. While Claude Code (or the Claude app) is open or music is playing, the panel shows the theme for 15 seconds, then each app screen for 10, fading through black between them. Both times can be changed, and a global shortcut steps theme > Claude > Spotify > theme by hand, with or without the automatic switching. The app screens take the background, font and colours of whatever theme is on.
+
+- **Claude Code** reads Claude Code's own session logs in `~/.claude/projects`: cost and tokens in the current five-hour session and when it resets, today, and the month at API prices next to the price of your plan. Once you have hit a limit, the logs say when that session ended and roughly how much it held, which gives an estimate of how much of the limit is used. Nothing is sent anywhere and no credentials are read. Usage on claude.ai or the phone shares the limit but isn't in those logs, so treat the limit as an estimate.
+- **Spotify** comes from the Windows media controls: the cover, title, artist, album and progress, with the progress bar in the cover's colour.
+
+The same values work in your own themes. The editor's *Add* list has *Now playing*, *Album cover* and *Claude usage* blocks, and any text can use keys like `{spotify.title}`, `{spotify.pos:mss}` or `{claude.block.cost:usd}`.
+
 ## The app
 
 <img src="docs/app-screen.png" alt="Ember's Screen page: a live mirror of the panel with theme, brightness and sensor status">
 
-The Screen page mirrors the panel live. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable.
+The Screen page mirrors the panel live. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable. Turn on *Traffic* and the preview tints every part of the screen that is being sent over USB, so you can see what a theme costs while it runs.
 
 <img src="docs/app-themes.png" alt="Ember's theme gallery with live thumbnails">
 
@@ -73,13 +91,21 @@ The gallery thumbnails run on your own sensor data. Click one to put it on the s
 
 <img src="docs/app-editor.png" alt="Ember's layout editor with a gauge selected">
 
-The editor is a canvas with layers. Drag things, resize them, let them snap to each other's edges and centres, and change any property on the right. Everything can be undone. Turn on *Live on the screen* and each change lands on the panel while you make it. The navigation pane folds to icons while you edit, so the canvas gets the room.
+The editor is a canvas with layers. Drag things, resize them, let them snap to each other's edges and centres, and change any property on the right. Everything can be undone. Turn on *Live on the screen* and each change lands on the panel while you make it. Above the canvas, *Link* shows how much of the USB link the theme needs, simulated in the background after every change; above about 80% animations start to lag. The navigation pane folds to icons while you edit, so the canvas gets the room.
+
+<img src="docs/app-apps.png" alt="Ember's Apps page with live previews of the Claude Code and Spotify screens">
+
+These panels tend to come out blue. *Settings > Screen colors* has colour temperature, gamma and a gain per channel. Only the panel is corrected, the preview keeps the theme's own colours.
 
 The tray icon has the rest: theme, brightness, turn the screen off, quit. When Windows turns the monitors off or the PC goes to sleep, the panel goes dark too.
 
 ## Why the stock software runs at 1 fps
 
 The panel's USB link moves about 157 KB/s, whatever baud rate you ask for. A full 480 × 320 frame in RGB565 is 300 KB, so redrawing the whole screen takes almost two seconds.
+
+<img src="docs/compare.webp" width="760" alt="Side by side over the same simulated link: Ember updates values, the graph and the seconds as they happen; sending the whole frame repaints the screen top to bottom every two seconds, with torn digits along the way">
+
+Both sides run the Ember theme through the same simulated link at 157 KB/s and 30 updates a second, using Ember's own sender. On the right, every update is the whole frame: it crawls down the screen for 1.9 s, so values are two to four seconds old and the digits tear where the new frame meets the old one. Splitting the work into fewer, bigger writes doesn't help either. Measured on the panel, 300 rectangles of 16 × 8 pixels move pixels as fast as one full frame, so all that matters is how many bytes go over.
 
 Ember never redraws the whole screen. Each frame is rendered in memory with SkiaSharp, in under a millisecond, and compared with what the panel already shows in 16 × 8 pixel tiles. Only the rectangles that changed go over the wire, the oldest first, within a budget per frame, so a big change arrives over a few frames instead of freezing everything else. The themes are drawn with that in mind: digits have fixed widths so going from 41 to 42 resends one glyph, gauges move in half-pixel steps, graphs sweep like an oscilloscope instead of scrolling, and the RGB565 dithering uses a fixed pattern so pixels that didn't change stay identical.
 
@@ -143,7 +169,9 @@ Widgets are drawn in order, first at the bottom. Colours are `#RGB`, `#RRGGBB`, 
 | `cores` | a bar per CPU thread | `sensor` is the prefix (`cpu.t`), `gap`, `radius` |
 | `rect`, `glow`, `icon`, `image` | backgrounds, cards, glows, Segoe Fluent icons, pictures | `color` or `colors`, `angle`, `radius`, `stroke`, `shadow`, `glyph`, `src` |
 
-Formats inside `{}`: any .NET number format (`0`, `0.0`), `rate` (bytes per second as KB/s or MB/s), `ratev` and `rateu` (just the number or just the unit), `mbit`, `ghz`, and date formats for `{time}` and `{date}` (`HH:mm`, `dddd, d MMMM`). Text in the built-in themes follows the interface language. Click any row on the Sensors page to copy its key.
+Formats inside `{}`: any .NET number format (`0`, `0.0`), `rate` (bytes per second as KB/s or MB/s), `ratev` and `rateu` (just the number or just the unit), `mbit`, `ghz`, `mss` and `hmm` (seconds as 3:05), `tok` (12K, 9.4M), `usd` ($12.40), and date formats for `{time}` and `{date}` (`HH:mm`, `dddd, d MMMM`). A text with `mode: ellipsis` and a width cuts long values with … instead of shrinking them, and an `image` with `src: "@art"` shows the cover of what is playing. Text in the built-in themes follows the interface language. Click any row on the Sensors page to copy its key.
+
+Ember picks up theme files as soon as they are saved, so you can also keep one open in a text editor and watch the panel change.
 
 ## Languages
 
@@ -162,7 +190,7 @@ dotnet run -c Release
 A few switches help while working on it:
 
 - `Ember.exe --selftest` checks the protocol encoding, colour conversion, the diff sender against a virtual panel, the translations and every theme in both languages.
-- `Ember.exe --render <folder>` writes a PNG of every theme, its bandwidth heat map and a bandwidth report.
+- `Ember.exe --render <folder>` writes a PNG of every theme and app screen, its bandwidth heat map, a bandwidth report and the frames of the comparison above.
 - `Ember.exe --demo` runs on made-up sensor readings.
 - `python tools/make-docs.py <Ember.exe>` rebuilds the images in this README.
 

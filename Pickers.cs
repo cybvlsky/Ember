@@ -254,3 +254,61 @@ sealed class SensorPicker : Popup
         return b;
     }
 }
+
+/// Mouse-wheel scrolling that glides instead of jumping 48 px: the wheel moves a target and every frame eases toward it.
+/// The innermost list that can still move takes the wheel, so a page also scrolls over its text boxes and at a list's end.
+/// Lists that scroll by items (CanContentScroll) keep the stock behaviour.
+static class SmoothScroll
+{
+    sealed class Glide { public double Target, Pos; public bool Running; }
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ScrollViewer, Glide> glides = new();
+    static readonly System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+    public static void Install() => EventManager.RegisterClassHandler(typeof(ScrollViewer), UIElement.MouseWheelEvent, new MouseWheelEventHandler(OnWheel));
+
+    static void OnWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
+        var sv = (ScrollViewer?)sender;
+        while (sv != null && !CanMove(sv, e.Delta)) sv = Outer(sv);
+        if (sv == null || sv.CanContentScroll) return;
+        e.Handled = true;
+        var g = glides.GetValue(sv, _ => new Glide());
+        // Not gliding, or something else moved it (scroll bar, keyboard): start from where it is.
+        if (!g.Running || Math.Abs(sv.VerticalOffset - g.Pos) > 2) g.Target = g.Pos = sv.VerticalOffset;
+        g.Target = Math.Clamp(g.Target - e.Delta / 120.0 * SystemParameters.WheelScrollLines * 32, 0, sv.ScrollableHeight);
+        if (g.Running) return;
+        g.Running = true;
+        double last = clock.Elapsed.TotalSeconds;
+        EventHandler? tick = null;
+        tick = (_, _) =>
+        {
+            double now = clock.Elapsed.TotalSeconds, dt = Math.Min(0.05, now - last);
+            last = now;
+            bool moved = Math.Abs(sv.VerticalOffset - g.Pos) > 2;
+            g.Pos += (g.Target - g.Pos) * (1 - Math.Exp(-dt / 0.075));
+            if (Math.Abs(g.Target - g.Pos) < 0.5) g.Pos = g.Target;
+            if (!moved) sv.ScrollToVerticalOffset(g.Pos);
+            if (moved || g.Pos == g.Target || !sv.IsVisible)
+            {
+                CompositionTarget.Rendering -= tick;
+                g.Running = false;
+            }
+        };
+        CompositionTarget.Rendering += tick;
+    }
+
+    static bool CanMove(ScrollViewer sv, int delta)
+    {
+        if (sv.ScrollableHeight <= 0) return false;
+        double at = glides.TryGetValue(sv, out var g) && g.Running ? g.Target : sv.VerticalOffset;
+        return delta > 0 ? at > 0 : at < sv.ScrollableHeight;
+    }
+
+    static ScrollViewer? Outer(DependencyObject d)
+    {
+        for (var p = VisualTreeHelper.GetParent(d); p != null; p = VisualTreeHelper.GetParent(p))
+            if (p is ScrollViewer sv) return sv;
+        return null;
+    }
+}

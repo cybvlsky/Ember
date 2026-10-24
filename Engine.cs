@@ -165,6 +165,31 @@ public sealed class FrameDiff
         return bytes;
     }
 
+    /// Bytes per second a theme asks of the link with sample data that changes every second: `seconds` simulated at
+    /// 30 fps after a second of warm-up, with no budget, so a theme that wants more than the link can carry shows over 100 %.
+    public static double LinkUse(Theme t, double seconds = 8)
+    {
+        using var r = new Renderer(t);
+        using var frame = new SKBitmap(W, H, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var c = new SKCanvas(frame);
+        var diff = new FrameDiff();
+        var next = new ushort[W * H];
+        long bytes = 0;
+        BlitFn count = (_, _, w, h, _) => bytes += w * h * 2 + 6;
+        Snapshot? snap = null;
+        int warm = 30, n = (int)(seconds * 30);
+        for (int i = 0; i < warm + n; i++)
+        {
+            double now = 100 + i / 30.0;
+            if (i % 30 == 0) snap = Snapshot.Demo(Math.Floor(now));
+            r.Render(c, snap!, 1 / 30.0, now);
+            To565(frame, next);
+            diff.Send(next, now, double.MaxValue, count, out _);
+            if (i == warm - 1) bytes = 0;
+        }
+        return bytes / seconds;
+    }
+
     static readonly int[] Bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
     /// BGRA8888 -> RGB565 with a 4x4 ordered dither. Ordered (not error diffusion) keeps static pixels identical
@@ -242,13 +267,18 @@ public sealed class Engine : IDisposable
     volatile string screen = "theme";
     string? switchTo;
     double shownAt = Clock.Now;
-    readonly List<string> apps = new(2);
+    readonly List<string> apps = new(2), available = new(2);
+    int stepRequested;
     Theme? appScreen, appLook;
     string? appFor;
     int appArt;
     const double FadeIn = 0.7, Hold = 2.8, FadeOut = 0.5, DrawTimeout = 4;
 
     public volatile bool PreviewWanted;
+    /// Tint the preview where pixels went over USB in the last moment, to see what a theme costs.
+    public volatile bool ShowTraffic;
+    readonly float[] heat = new float[FrameDiff.TX * FrameDiff.TY];
+    readonly BlitFn send;
     /// The theme editor is open: no app screens over the theme being edited.
     public volatile bool HoldTheme;
     public volatile string Status = L.T("Looking for the screen…");
@@ -263,12 +293,22 @@ public sealed class Engine : IDisposable
         this.sensors = sensors;
         this.theme = theme;
         introDue = cfg.Intro && !Sensors.Demo;
+        send = (x, y, w, h, px) =>
+        {
+            lcd.Blit(x, y, w, h, px);
+            if (!ShowTraffic) return;
+            for (int ty = y / FrameDiff.TH; ty <= (y + h - 1) / FrameDiff.TH; ty++)
+                for (int tx = x / FrameDiff.TW; tx <= (x + w - 1) / FrameDiff.TW; tx++)
+                    heat[ty * FrameDiff.TX + tx] = 1;
+        };
     }
 
     public Theme Theme { get => theme; set { theme = value; screen = "theme"; shownAt = Clock.Now; wake.Set(); } }
     public bool Blank { get => userBlank; set { userBlank = value; wake.Set(); } }
     public bool MonitorsOff { set { monitorsOff = value; wake.Set(); } }
     public void Poke() => wake.Set();
+    /// The next-screen shortcut: theme, then each app screen that is switched on, then the theme again.
+    public void StepScreen() { Interlocked.Exchange(ref stepRequested, 1); wake.Set(); }
     public void Redraw() { invalidate = true; wake.Set(); }
     public void Reconnect() { reconnect = true; wake.Set(); }
 
@@ -353,8 +393,14 @@ public sealed class Engine : IDisposable
                     else renderer!.Render(c, snap, fresh ? 0 : dt, t0);
                 }
                 RenderMs = (float)((Clock.Now - r0) * 1000);
+                if (ShowTraffic) for (int i = 0; i < heat.Length; i++) heat[i] *= (float)Math.Exp(-dt / 0.35);
                 if (PreviewWanted)
-                    lock (previewLock) { Marshal.Copy(frame.GetPixels(), preview, 0, preview.Length); previewSeq++; }
+                    lock (previewLock)
+                    {
+                        Marshal.Copy(frame.GetPixels(), preview, 0, preview.Length);
+                        if (ShowTraffic) Tint(preview);
+                        previewSeq++;
+                    }
 
                 int sent = 0;
                 bool pending = false;
@@ -364,7 +410,7 @@ public sealed class Engine : IDisposable
                     var colors = (cfg.ColorTemp, cfg.Gamma, cfg.GainR, cfg.GainG, cfg.GainB);
                     if (colors != lutFor) { lutFor = colors; lut = ColorFix.Lut(cfg); Array.Clear(converted); }
                     FrameDiff.To565(frame, next, converted, lut);
-                    sent = diff.Send(next, t0, Math.Max(4096, FrameDiff.Bandwidth / fps), lcd.Blit, out pending);
+                    sent = diff.Send(next, t0, Math.Max(4096, FrameDiff.Bandwidth / fps), send, out pending);
                     if (sent > 0) { frames++; bytes += sent; }
                     Sequence(Clock.Now, pending);
                 }
@@ -447,15 +493,42 @@ public sealed class Engine : IDisposable
 
     static double Ease(double k) => k * k * (3 - 2 * k);
 
+    /// Pink over every 16x8 tile that was sent recently, fading out over a third of a second.
+    void Tint(byte[] px)
+    {
+        for (int ty = 0; ty < FrameDiff.TY; ty++)
+            for (int tx = 0; tx < FrameDiff.TX; tx++)
+            {
+                float a = Math.Min(0.6f, heat[ty * FrameDiff.TX + tx] * 0.6f);
+                if (a < 0.02f) continue;
+                int ia = (int)(a * 256), keep = 256 - ia;
+                for (int y = ty * FrameDiff.TH; y < ty * FrameDiff.TH + FrameDiff.TH; y++)
+                    for (int o = (y * FrameDiff.W + tx * FrameDiff.TW) * 4, end = o + FrameDiff.TW * 4; o < end; o += 4)
+                    {
+                        px[o] = (byte)((px[o] * keep + 0xB4 * ia) >> 8);
+                        px[o + 1] = (byte)((px[o + 1] * keep + 0x3C * ia) >> 8);
+                        px[o + 2] = (byte)((px[o + 2] * keep + 0xFF * ia) >> 8);
+                    }
+            }
+    }
+
     /// The theme for ThemeSecs, then each app in use for AppSecs. On the panel every switch fades through black,
     /// like start-up: the link needs a couple of seconds for a whole new screen and the dark hides the redraw.
     void Rotate(Snapshot s, double now, bool onPanel)
     {
         if (switchTo != null) { screen = switchTo; switchTo = null; shownAt = now; } // the fade was cut short
         apps.Clear();
-        if (!HoldTheme && cfg.ClaudeApp && s.Get("claude.active") > 0) apps.Add("claude");
-        if (!HoldTheme && cfg.SpotifyApp && s.Get("spotify.active") > 0) apps.Add("spotify");
-        var next = Rotation.Next(screen, now - shownAt, apps, Math.Max(3, cfg.ThemeSecs), Math.Max(3, cfg.AppSecs));
+        available.Clear();
+        if (!HoldTheme)
+        {
+            // Claude's month and day are worth a look even with nothing open; Spotify needs something loaded.
+            if (cfg.ClaudeApp) available.Add("claude");
+            if (cfg.ClaudeApp && s.Get("claude.active") > 0) apps.Add("claude");
+            if (cfg.SpotifyApp && s.Get("spotify.present") > 0) available.Add("spotify");
+            if (cfg.SpotifyApp && s.Get("spotify.active") > 0) apps.Add("spotify");
+        }
+        bool step = Interlocked.Exchange(ref stepRequested, 0) == 1;
+        var next = Rotation.Pick(screen, now - shownAt, step, cfg.AutoRotate, available, apps, Math.Max(3, cfg.ThemeSecs), Math.Max(3, cfg.AppSecs));
         if (next == screen) return;
         Log.Info($"screen: {next}");
         if (onPanel) { switchTo = next; phase = 4; phaseAt = now; }

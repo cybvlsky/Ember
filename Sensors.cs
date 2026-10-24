@@ -39,8 +39,28 @@ public sealed class Snapshot
     public static Snapshot Demo(double t = 0)
     {
         var s = new Snapshot { Seq = 1000 + (long)t, T = Math.Floor(t), Interval = 1 };
+        DemoValues(t, s.V);
+        s.S["cpu.name"] = "Ryzen 5 9600X"; s.S["gpu.name"] = "RTX 5060 Ti"; s.S["net.name"] = "Ethernet";
+        s.S["disk.name"] = "Lexar NM790"; s.S["sys.uptime"] = "3 h 24 min";
+        AppWatch.Demo(s);
+        // History is the same made-up signal one second at a time, so a graph shows what the values did.
+        var past = new Dictionary<string, double>();
+        var hist = Sensors.HistoryKeys.Where(s.V.ContainsKey).ToDictionary(k => k, _ => new float[HistoryLength]);
+        for (int i = 0; i < HistoryLength; i++)
+        {
+            DemoValues(Math.Floor(t) - (HistoryLength - 1 - i), past);
+            foreach (var (k, h) in hist) h[i] = (float)past[k];
+        }
+        foreach (var (k, h) in hist) s.H[k] = h;
+        return s;
+    }
+
+    static void DemoValues(double t, Dictionary<string, double> v)
+    {
         double W(double phase, double speed) => 0.5 + 0.5 * Math.Sin(t * speed + phase);
-        void Set(string k, double v) => s.V[k] = v;
+        // A slow swell times a faster ripple: reads like real traffic rather than one sine.
+        double Busy(double phase) => Math.Clamp(0.45 + 0.3 * Math.Sin(t * 0.21 + phase) + 0.2 * Math.Sin(t * 0.83 + phase * 2) * Math.Sin(t * 0.37), 0, 1);
+        void Set(string k, double x) => v[k] = x;
         Set("cpu.load", 28 + 18 * W(0, 0.7)); Set("cpu.loadmax", 64 + 20 * W(1, 0.9)); Set("cpu.temp", 54 + 8 * W(2, 0.3));
         Set("cpu.clock", 5260 + 120 * W(3, 1.1)); Set("cpu.power", 58 + 20 * W(4, 0.6)); Set("cpu.threads", 12);
         for (int i = 1; i <= 12; i++) Set($"cpu.t{i}", Math.Clamp(15 + 70 * W(i * 1.7, 0.8 + i * 0.05) * (i % 3 == 0 ? 0.4 : 1), 0, 100));
@@ -48,25 +68,8 @@ public sealed class Snapshot
         Set("gpu.clock", 2805); Set("gpu.memclock", 15851); Set("gpu.power", 138 + 22 * W(7, 0.5)); Set("gpu.fan", 1460); Set("gpu.fanpct", 42);
         Set("gpu.vram.used", 6.3); Set("gpu.vram.total", 15.9); Set("gpu.vram", 39.6);
         Set("ram.used", 14.6); Set("ram.total", 31.1); Set("ram.free", 16.5); Set("ram.load", 47);
-        Set("net.down", 12.6e6 * W(8, 0.4)); Set("net.up", 0.84e6 * W(9, 0.6));
+        Set("net.down", 12.6e6 * Busy(8)); Set("net.up", 0.84e6 * Busy(9));
         Set("disk.used", 61); Set("disk.free", 362); Set("disk.total", 931); Set("disk.temp", 41);
-        s.S["cpu.name"] = "Ryzen 5 9600X"; s.S["gpu.name"] = "RTX 5060 Ti"; s.S["net.name"] = "Ethernet";
-        s.S["disk.name"] = "Lexar NM790"; s.S["sys.uptime"] = "3 h 24 min";
-        AppWatch.Demo(s);
-        foreach (var k in Sensors.HistoryKeys)
-        {
-            if (!s.V.TryGetValue(k, out var v)) continue;
-            var h = new float[HistoryLength];
-            double seed = k.GetHashCode() % 1000 / 100.0;
-            for (int i = 0; i < h.Length; i++)
-            {
-                double x = (t - (h.Length - 1 - i)) * 0.11 + seed;
-                double n = Math.Sin(x) * 0.5 + Math.Sin(x * 2.7 + 1) * 0.3 + Math.Sin(x * 6.1 + 2) * 0.2;
-                h[i] = (float)Math.Max(0, v * (1 + 0.35 * n));
-            }
-            s.H[k] = h;
-        }
-        return s;
     }
 }
 
@@ -92,6 +95,16 @@ public sealed class Sensors : IDisposable
         new("time", "Time  {time:HH:mm}", "", "Time"), new("date", "Date  {date:dddd, d MMMM}", "", "Time"),
         new("time.sec", "Seconds (smooth)", "s", "Time"), new("time.min", "Minutes (smooth)", "min", "Time"), new("time.hour", "Hours (smooth, 12 h)", "h", "Time"),
         new("sys.uptime", "Uptime", "", "System"),
+        new("claude.block.cost", "Session cost", "$", "Claude Code"), new("claude.block.tokens", "Session tokens", "tok", "Claude Code"),
+        new("claude.block.left", "Session time left", "s", "Claude Code"), new("claude.block.elapsed", "Session time used", "%", "Claude Code"),
+        new("claude.block.pct", "Session limit used (estimate)", "%", "Claude Code"), new("claude.resetText", "Session reset", "", "Claude Code"),
+        new("claude.today.cost", "Cost today", "$", "Claude Code"), new("claude.today.tokens", "Tokens today", "tok", "Claude Code"),
+        new("claude.month.cost", "Cost this month", "$", "Claude Code"), new("claude.value", "Month against the plan price", "×", "Claude Code"),
+        new("claude.valueText", "Month against the plan price, as text", "", "Claude Code"), new("claude.sessions", "Open sessions", "", "Claude Code"),
+        new("claude.model", "Model", "", "Claude Code"), new("claude.status", "Status", "", "Claude Code"), new("claude.limit", "Limit note", "", "Claude Code"),
+        new("spotify.title", "Title", "", "Spotify"), new("spotify.artist", "Artist", "", "Spotify"), new("spotify.album", "Album", "", "Spotify"),
+        new("spotify.state", "Playing or paused", "", "Spotify"), new("spotify.pos", "Track position", "s", "Spotify"), new("spotify.dur", "Length", "s", "Spotify"),
+        new("spotify.progress", "Progress", "%", "Spotify"),
     ];
 
     public static readonly string[] HistoryKeys =

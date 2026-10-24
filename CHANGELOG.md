@@ -6,6 +6,14 @@
 - The Claude Code screen reads Claude Code's logs on the PC: cost and tokens in the current five-hour session and when it resets, the month at API prices compared with the plan price, and an estimate of the session limit once a limit has been hit. Nothing is sent anywhere and no credentials are read.
 - The Spotify screen shows the cover, title, artist, album and progress from the Windows media controls; the progress bar takes its colour from the cover.
 - App screens wear the current theme's background, font and colours.
+- A global shortcut for the next screen (theme > Claude > Spotify > theme), and automatic switching can be turned off.
+- Themes can show Claude and Spotify too: *Now playing*, *Album cover* and *Claude usage* blocks in the editor, new value formats (`mss`, `hmm`, `tok`, `usd`), `ellipsis` for long texts and `@art` images.
+- *Traffic* on the Screen page tints whatever is being sent over USB. The editor shows how much of the link a theme needs.
+- Theme files saved outside Ember go on the panel right away.
+- Smooth scrolling everywhere, and the wheel scrolls the page over text boxes and at the end of lists.
+- A smaller window by default.
+- Fixed: closing the window in the editor kept app screens away until it was opened again.
+- Fixed: sample graphs in the gallery and the editor drew the whole history at the current value.
 - Screen colour correction for panels that come out blue: colour temperature, gamma and per-channel gains. Only the panel is corrected.
 - Needs Windows 10 version 2004 or newer.
 

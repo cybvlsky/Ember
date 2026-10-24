@@ -47,6 +47,9 @@ public sealed class Settings
     public string ClaudePlan { get; set; } = "pro";
     public int ThemeSecs { get; set; } = 15;
     public int AppSecs { get; set; } = 10;
+    public bool AutoRotate { get; set; } = true;
+    /// Global shortcut for the next screen, e.g. "Ctrl+Alt+N" (Windows Forms key names). Empty: none.
+    public string NextScreenKey { get; set; } = "";
 
     static string FilePath => Path.Combine(App.DataDir, "settings.json");
 
@@ -137,7 +140,7 @@ public static class Autostart
         var xml = $"""
             <?xml version="1.0" encoding="UTF-16"?>
             <Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-              <RegistrationInfo><Author>Ember</Author><Description>Ember: ekran Turing 3.5". Start z systemem, z dostępem do czujników.</Description></RegistrationInfo>
+              <RegistrationInfo><Author>Ember</Author><Description>Ember for the Turing Smart Screen 3.5": starts with Windows with access to the sensors.</Description></RegistrationInfo>
               <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{sid}</UserId><Delay>PT3S</Delay></LogonTrigger></Triggers>
               <Principals><Principal id="Author"><UserId>{sid}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals>
               <Settings>
@@ -193,6 +196,18 @@ sealed class Host : NativeWindow
     static readonly int WmShow = (int)RegisterWindowMessage("Ember.Show"), WmQuit = (int)RegisterWindowMessage("Ember.Quit");
     static Guid displayState = new("6FE69556-704A-47A0-8F24-C28D936FDA47");
     readonly IntPtr notify;
+    const int HotkeyId = 1;
+    bool hotkey;
+
+    /// Registers the next-screen shortcut ("Ctrl+Alt+N"); false when it is malformed or another program has it.
+    public bool SetHotkey(string spec)
+    {
+        if (hotkey) { UnregisterHotKey(Handle, HotkeyId); hotkey = false; }
+        if (string.IsNullOrWhiteSpace(spec)) return true;
+        if (Hotkeys.Parse(spec) is not var (mods, vk)) return false;
+        hotkey = RegisterHotKey(Handle, HotkeyId, mods | 0x4000 /* MOD_NOREPEAT */, vk);
+        return hotkey;
+    }
 
     public Host()
     {
@@ -243,8 +258,9 @@ sealed class Host : NativeWindow
 
     protected override void WndProc(ref Message m)
     {
-        const int WM_POWERBROADCAST = 0x218, WM_QUERYENDSESSION = 0x11, WM_ENDSESSION = 0x16;
-        if (m.Msg == WmShow) App.ShowWindow();
+        const int WM_POWERBROADCAST = 0x218, WM_QUERYENDSESSION = 0x11, WM_ENDSESSION = 0x16, WM_HOTKEY = 0x312;
+        if (m.Msg == WM_HOTKEY && (int)m.WParam == HotkeyId) App.Engine.StepScreen();
+        else if (m.Msg == WmShow) App.ShowWindow();
         else if (m.Msg == WmQuit) App.Quit();
         else if (m.Msg == WM_POWERBROADCAST)
         {
@@ -272,6 +288,8 @@ sealed class Host : NativeWindow
     }
 
     [DllImport("user32", CharSet = CharSet.Unicode)] static extern uint RegisterWindowMessage(string name);
+    [DllImport("user32", SetLastError = true)] static extern bool RegisterHotKey(IntPtr h, int id, uint mods, uint vk);
+    [DllImport("user32")] static extern bool UnregisterHotKey(IntPtr h, int id);
     [DllImport("user32", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string? cls, string caption);
     [DllImport("user32")] static extern bool PostMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
     [DllImport("user32")] static extern bool ChangeWindowMessageFilterEx(IntPtr h, uint msg, uint action, IntPtr info);
@@ -295,6 +313,9 @@ public static class App
     static int shuttingDown;
     static string? shotDir;
     public static bool Shots => shotDir != null;
+
+    /// (Re)registers Cfg.NextScreenKey; false when another program already uses it.
+    public static bool ApplyHotkey() => host?.SetHotkey(Cfg.NextScreenKey) ?? false;
 
     [STAThread]
     public static int Main(string[] args)
@@ -371,12 +392,44 @@ public static class App
 
         Wpf = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
         Wpf.DispatcherUnhandledException += (_, e) => { Log.Error("ui", e.Exception); e.Handled = true; };
+        SmoothScroll.Install();
         host = new Host();
+        WatchThemes();
+        if (!ApplyHotkey()) Log.Warn($"shortcut {Cfg.NextScreenKey} is taken");
         tray = Tray.Create();
         if (!startHidden || shotDir != null) ShowWindow();
         if (shotDir != null) Wpf.Dispatcher.BeginInvoke(async () => { await Task.Delay(1500); await window!.Screenshots(shotDir); Quit(); }, DispatcherPriority.ApplicationIdle);
         Wpf.Run();
         ShutdownNow();
+    }
+
+    static FileSystemWatcher? watcher;
+
+    /// A theme saved by another editor goes on the panel as soon as it is written (unless Ember's editor has the panel).
+    static void WatchThemes()
+    {
+        try
+        {
+            Directory.CreateDirectory(Themes.UserDir);
+            var debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            debounce.Tick += (_, _) =>
+            {
+                debounce.Stop();
+                AllThemes = Themes.LoadAll();
+                if (Engine.HoldTheme) return;
+                var cur = AllThemes.FirstOrDefault(t => t.Id == Engine.Theme.Id);
+                if (cur == null || cur.ToJson() == Engine.Theme.ToJson()) return;
+                Engine.Theme = cur;
+                Log.Info($"theme {cur.Id} changed on disk");
+            };
+            void Changed(object? _, FileSystemEventArgs e) => Wpf.Dispatcher.BeginInvoke(() => { debounce.Stop(); debounce.Start(); });
+            watcher = new FileSystemWatcher(Themes.UserDir, "*.json") { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName };
+            watcher.Changed += Changed;
+            watcher.Created += Changed;
+            watcher.Renamed += Changed;
+            watcher.EnableRaisingEvents = true;
+        }
+        catch (Exception e) { Log.Error("theme watcher", e); }
     }
 
     public const string RepoUrl = "https://github.com/cybvlsky/Ember";
@@ -516,6 +569,8 @@ static class Tray
         Style(bright);
         menu.Items.Add(bright);
         menu.Items.Add(new ToolStripMenuItem(L.T("Turn the screen off"), null, (_, _) => App.Engine.Blank = !App.Engine.Blank) { Checked = App.Engine.Blank });
+        if (App.Cfg.ClaudeApp || App.Cfg.SpotifyApp)
+            menu.Items.Add(new ToolStripMenuItem(L.T("Next screen"), null, (_, _) => App.Engine.StepScreen()) { ShortcutKeyDisplayString = Hotkeys.Display(App.Cfg.NextScreenKey) });
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem(L.T("Quit"), null, (_, _) => App.Quit()));
     }
@@ -742,4 +797,25 @@ static class Signature
     }
 
     [DllImport("wintrust", CharSet = CharSet.Unicode)] static extern int WinVerifyTrust(IntPtr hwnd, ref Guid action, ref WINTRUST_DATA data);
+}
+
+/// Shortcut text <-> RegisterHotKey arguments. Stored as "Ctrl+Alt+N": modifiers, then a Windows Forms key name.
+public static class Hotkeys
+{
+    public static (uint Mods, uint Vk)? Parse(string spec)
+    {
+        uint mods = 0;
+        var parts = spec.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0) return null;
+        foreach (var p in parts[..^1])
+            mods |= p.ToLowerInvariant() switch { "alt" => 1u, "ctrl" => 2u, "shift" => 4u, "win" => 8u, _ => 0x8000u };
+        if (mods >= 0x8000 || !Enum.TryParse<Keys>(parts[^1], true, out var key) || key == Keys.None) return null;
+        return (mods, (uint)key);
+    }
+
+    public static string Make(bool ctrl, bool alt, bool shift, bool win, Keys key) =>
+        string.Join("+", new[] { ctrl ? "Ctrl" : null, alt ? "Alt" : null, shift ? "Shift" : null, win ? "Win" : null, key.ToString() }.Where(x => x != null));
+
+    /// "Ctrl+Alt+D1" -> "Ctrl+Alt+1".
+    public static string Display(string spec) => string.Join("+", spec.Split('+').Select(p => p.Length == 2 && p[0] == 'D' && char.IsDigit(p[1]) ? p[1..] : p));
 }

@@ -126,6 +126,8 @@ public static class SelfTest
             Check(back.Widgets.Count == t.Widgets.Count && back.ToJson() == t.ToJson(), $"theme {t.Id} JSON round trip");
         }
         using (var intro = Icons.Intro()) Check(intro.Width == FrameDiff.W, "start-up card renders");
+        var studioUse = FrameDiff.LinkUse(themes.First(t => t.Id == "studio"), 4);
+        Check(studioUse > 1000 && studioUse < FrameDiff.Bandwidth, $"link use of Studio is measurable and fits ({studioUse / 1024:0.0} KB/s)");
         Check(Renderer.Errors == before, $"themes render in both languages without errors ({Renderer.Errors - before})");
 
         // App screens: in every theme's look, both languages, with and without a cover.
@@ -149,11 +151,16 @@ public static class SelfTest
         Check(Renderer.Format(83, "mss") == "1:23" && Renderer.Format(3 * 3600 + 5 * 60, "hmm") == "3:05", "format m:ss and h:mm");
         Check(Renderer.Format(9.4e6, "tok") == "9.4M" && Renderer.Format(340_000, "tok") == "340K" && Renderer.Format(12.5, "usd") == "$12.50", "format tokens and dollars");
 
-        // Rotation: theme 15 s, then each app 10 s, then back.
-        List<string> both = ["claude", "spotify"];
-        Check(Rotation.Next("theme", 14, both, 15, 10) == "theme" && Rotation.Next("theme", 15, both, 15, 10) == "claude", "rotation: theme first");
-        Check(Rotation.Next("claude", 10, both, 15, 10) == "spotify" && Rotation.Next("spotify", 10, both, 15, 10) == "theme", "rotation: apps in turn, then the theme");
-        Check(Rotation.Next("spotify", 2, ["claude"], 15, 10) == "theme" && Rotation.Next("theme", 99, [], 15, 10) == "theme", "rotation: closed apps drop out");
+        // Rotation: theme 15 s, then each app 10 s, then back; the shortcut steps through what is available.
+        List<string> both = ["claude", "spotify"], none = [], claudeOnly = ["claude"];
+        string Auto(string cur, double held, List<string> active) => Rotation.Pick(cur, held, false, true, both, active, 15, 10);
+        Check(Auto("theme", 14, both) == "theme" && Auto("theme", 15, both) == "claude", "rotation: theme first");
+        Check(Auto("claude", 10, both) == "spotify" && Auto("spotify", 10, both) == "theme", "rotation: apps in turn, then the theme");
+        Check(Rotation.Pick("spotify", 2, false, true, claudeOnly, claudeOnly, 15, 10) == "theme" && Auto("theme", 99, none) == "theme", "rotation: closed apps drop out");
+        Check(Rotation.Pick("theme", 0, true, true, both, none, 15, 10) == "claude" && Rotation.Pick("claude", 0, true, false, both, none, 15, 10) == "spotify"
+              && Rotation.Pick("spotify", 0, true, false, both, none, 15, 10) == "theme", "shortcut: theme > Claude > Spotify > theme");
+        Check(Rotation.Pick("claude", 60, false, false, both, none, 15, 10) == "claude", "shortcut without rotation: the screen stays");
+        Check(Auto("claude", 3, none) == "claude" && Auto("claude", 10, ["spotify"]) == "spotify", "a screen picked by hand gets its time, then rotation goes on");
 
         // Claude Code log lines: streamed duplicates count once, prices per model, limit hits.
         var cu = new ClaudeUsage();
@@ -181,6 +188,49 @@ public static class SelfTest
         File.WriteAllLines(Path.Combine(App.DataDir, "selftest.txt"), log);
         foreach (var l in log) Console.WriteLine(l);
         return fails;
+    }
+
+    /// What the panel shows over the same simulated link: Ember's sender, and one that sends every frame whole
+    /// (a new frame as soon as the last one is through). Eight seconds of the Ember theme after three of warm-up.
+    static void Compare(string dir)
+    {
+        foreach (var side in new[] { "ember", "full" }) Directory.CreateDirectory(Path.Combine(dir, side));
+        const int W = FrameDiff.W, H = FrameDiff.H;
+        using var r = new Renderer(Themes.LoadAll().First(t => t.Id == "ember"));
+        using var frame = new SKBitmap(W, H, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var c = new SKCanvas(frame);
+        using var shot = new SKBitmap(W, H, SKColorType.Bgra8888, SKAlphaType.Premul);
+        var diff = new FrameDiff();
+        ushort[] next = new ushort[W * H], full = new ushort[W * H], sending = new ushort[W * H];
+        double perFrame = FrameDiff.Bandwidth / 30, row = 0;
+        BlitFn none = (_, _, _, _, _) => { };
+        for (int i = 0; i < 90 + 240; i++)
+        {
+            double now = 300 + i / 30.0;
+            r.Render(c, Snapshot.Demo(Math.Floor(now)), i == 0 ? 0 : 1 / 30.0, now);
+            FrameDiff.To565(frame, next);
+            diff.Send(next, now, perFrame, none, out _);
+            if (row == 0) next.CopyTo(sending, 0);
+            int from = (int)row;
+            row = Math.Min(H, row + perFrame / (W * 2.0));
+            Array.Copy(sending, from * W, full, from * W, ((int)row - from) * W);
+            if (row >= H) row = 0;
+            if (i < 90) continue;
+            Save565(diff.Shown, shot, Path.Combine(dir, "ember", $"{i - 90:000}.png"));
+            Save565(full, shot, Path.Combine(dir, "full", $"{i - 90:000}.png"));
+        }
+    }
+
+    static unsafe void Save565(ushort[] px, SKBitmap bmp, string path)
+    {
+        uint* p = (uint*)bmp.GetPixels();
+        for (int i = 0; i < px.Length; i++)
+        {
+            int v = px[i], r = v >> 11, g = (v >> 5) & 63, b = v & 31;
+            p[i] = 0xFF000000u | (uint)((r << 3 | r >> 2) << 16 | (g << 2 | g >> 4) << 8 | (b << 3 | b >> 2));
+        }
+        using var f = File.Create(path);
+        bmp.Encode(f, SKEncodedImageFormat.Png, 100);
     }
 
     static int Drain(FrameDiff diff, ushort[] next, BlitFn blit)
@@ -225,6 +275,7 @@ public static class SelfTest
                 using var f = File.Create(Path.Combine(frames, $"{i - 30:000}.png"));
                 frame.Encode(f, SKEncodedImageFormat.Png, 100);
             }
+        Compare(Path.Combine(dir, "compare"));
         var lines = new List<string>();
         foreach (var t in Themes.LoadAll())
         {
