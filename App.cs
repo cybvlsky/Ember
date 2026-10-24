@@ -35,6 +35,12 @@ public sealed class Settings
     public string Language { get; set; } = "en";
     /// The start-up card on the panel.
     public bool Intro { get; set; } = true;
+    /// Panel colour correction (ColorFix): warm/cool shift -50..50, gamma, channel gains in %.
+    public int ColorTemp { get; set; }
+    public double Gamma { get; set; } = 1;
+    public int GainR { get; set; } = 100;
+    public int GainG { get; set; } = 100;
+    public int GainB { get; set; } = 100;
 
     static string FilePath => Path.Combine(App.DataDir, "settings.json");
 

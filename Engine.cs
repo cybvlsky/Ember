@@ -170,11 +170,13 @@ public sealed class FrameDiff
     /// BGRA8888 -> RGB565 with a 4x4 ordered dither. Ordered (not error diffusion) keeps static pixels identical
     /// between frames, so dithering costs no bandwidth while removing banding from gradients.
     /// `cache` (optional, W*H*4) holds the last converted frame: rows that did not change are skipped.
-    public static unsafe void To565(SKBitmap src, ushort[] dst, byte[]? cache = null)
+    /// `lut` (optional, see ColorFix) remaps each channel first; clear `cache` whenever it changes.
+    public static unsafe void To565(SKBitmap src, ushort[] dst, byte[]? cache = null, byte[]? lut = null)
     {
         byte* p = (byte*)src.GetPixels();
         int stride = src.RowBytes;
         fixed (ushort* d = dst)
+        fixed (byte* L = lut)
             for (int y = 0; y < H; y++)
             {
                 byte* row = p + y * stride;
@@ -190,9 +192,11 @@ public sealed class FrameDiff
                 for (int x = 0; x < W; x++)
                 {
                     int t = Bayer[by + (x & 3)];
-                    int b = Math.Min(255, row[0] + (t >> 1));
-                    int g = Math.Min(255, row[1] + (t >> 2));
-                    int r = Math.Min(255, row[2] + (t >> 1));
+                    int b0 = row[0], g0 = row[1], r0 = row[2];
+                    if (L != null) { r0 = L[r0]; g0 = L[256 + g0]; b0 = L[512 + b0]; }
+                    int b = Math.Min(255, b0 + (t >> 1));
+                    int g = Math.Min(255, g0 + (t >> 2));
+                    int r = Math.Min(255, r0 + (t >> 1));
                     o[x] = (ushort)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
                     row += 4;
                 }
@@ -232,6 +236,8 @@ public sealed class Engine : IDisposable
     bool intro, introDue;
     int level = -1;      // brightness % last sent
     SKBitmap? introFrame;
+    byte[]? lut;
+    (int, double, int, int, int)? lutFor;
     const double FadeIn = 0.7, Hold = 2.8, FadeOut = 0.5, DrawTimeout = 4;
 
     public volatile bool PreviewWanted;
@@ -342,7 +348,9 @@ public sealed class Engine : IDisposable
                 int fps = Math.Clamp(cfg.Fps, 5, 60);
                 if (lcd.IsOpen && active)
                 {
-                    FrameDiff.To565(frame, next, converted);
+                    var colors = (cfg.ColorTemp, cfg.Gamma, cfg.GainR, cfg.GainG, cfg.GainB);
+                    if (colors != lutFor) { lutFor = colors; lut = ColorFix.Lut(cfg); Array.Clear(converted); }
+                    FrameDiff.To565(frame, next, converted, lut);
                     sent = diff.Send(next, t0, Math.Max(4096, FrameDiff.Bandwidth / fps), lcd.Blit, out pending);
                     if (sent > 0) { frames++; bytes += sent; }
                     Sequence(Clock.Now, pending);
@@ -513,4 +521,29 @@ sealed class Pacer
 
     [DllImport("kernel32", SetLastError = true)] static extern IntPtr CreateWaitableTimerExW(IntPtr attributes, IntPtr name, uint flags, uint access);
     [DllImport("kernel32", SetLastError = true)] static extern bool SetWaitableTimerEx(Microsoft.Win32.SafeHandles.SafeWaitHandle h, ref long due, int period, IntPtr completion, IntPtr arg, IntPtr wakeContext, uint tolerableDelay);
+}
+
+/// Per-channel curves for panels that come out too blue or too contrasty: a gain per channel, a shared gamma
+/// and a warm/cool shift. Only the panel gets them; the window preview shows the theme as designed.
+public static class ColorFix
+{
+    /// R, G and B tables (768 bytes), or null when the settings change nothing.
+    public static byte[]? Lut(Settings cfg)
+    {
+        double t = Math.Clamp(cfg.ColorTemp, -50, 50) / 50.0; // +1 warmest, -1 coolest
+        double gr = Math.Clamp(cfg.GainR, 0, 100) / 100.0 * (t < 0 ? 1 + 0.3 * t : 1);
+        double gg = Math.Clamp(cfg.GainG, 0, 100) / 100.0 * (t > 0 ? 1 - 0.08 * t : 1 + 0.04 * t);
+        double gb = Math.Clamp(cfg.GainB, 0, 100) / 100.0 * (t > 0 ? 1 - 0.3 * t : 1);
+        double gamma = Math.Clamp(cfg.Gamma, 0.5, 2.0);
+        if (Math.Abs(gr - 1) < 1e-3 && Math.Abs(gg - 1) < 1e-3 && Math.Abs(gb - 1) < 1e-3 && Math.Abs(gamma - 1) < 1e-3) return null;
+        var lut = new byte[768];
+        for (int i = 0; i < 256; i++)
+        {
+            double v = Math.Pow(i / 255.0, gamma);
+            lut[i] = (byte)Math.Round(255 * Math.Clamp(v * gr, 0, 1));
+            lut[256 + i] = (byte)Math.Round(255 * Math.Clamp(v * gg, 0, 1));
+            lut[512 + i] = (byte)Math.Round(255 * Math.Clamp(v * gb, 0, 1));
+        }
+        return lut;
+    }
 }

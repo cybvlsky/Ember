@@ -81,6 +81,21 @@ public static class SelfTest
 
         Check(Renderer.Format(double.NaN, null) == "--", "format NaN");
         Check(Sensors.PcieHook != null, "LHM NVIDIA PCIe throughput hook present");
+        var tint = new Settings();
+        Check(ColorFix.Lut(tint) == null, "neutral colour settings leave the frame alone");
+        tint.ColorTemp = 50;
+        var warm = ColorFix.Lut(tint)!;
+        Check(warm[255] == 255 && warm[512 + 255] < 200, $"warmer keeps red and pulls blue down ({warm[512 + 255]})");
+        tint.ColorTemp = 0; tint.Gamma = 2;
+        var dark = ColorFix.Lut(tint)!;
+        Check(dark[128] is > 55 and < 70 && dark[255] == 255 && dark[0] == 0, $"gamma 2 darkens midtones only ({dark[128]})");
+        using (var white = new SKBitmap(FrameDiff.W, FrameDiff.H, SKColorType.Bgra8888, SKAlphaType.Premul))
+        {
+            white.Erase(SKColors.White);
+            var px565 = new ushort[FrameDiff.W * FrameDiff.H];
+            FrameDiff.To565(white, px565, null, warm);
+            Check((px565[0] & 0x1F) < 0x1F && px565[0] >> 11 == 0x1F, "the panel gets the corrected white");
+        }
         L.Lang = "pl";
         Check(Renderer.Format(12.6e6, "rate") == "12,0 MB/s", $"format rate, Polish ({Renderer.Format(12.6e6, "rate")})");
         Check(Renderer.Format(5280, "ghz") == "5,28", "format ghz, Polish");

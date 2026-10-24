@@ -23,6 +23,16 @@ public static class L
     internal static readonly Dictionary<string, string> Polish = new()
     {
         ["Screen"] = "Ekran",
+        ["Screen colors"] = "Kolory ekranu",
+        ["Color temperature"] = "Temperatura barw",
+        ["Only changes the panel. Move it right if the screen looks blue."] = "Zmienia tylko ekranik. Przesuń w prawo, jeśli obraz jest niebieskawy.",
+        ["Gamma"] = "Gamma",
+        ["Above 1 darkens the midtones, below 1 lifts them."] = "Powyżej 1 przyciemnia półtony, poniżej 1 je rozjaśnia.",
+        ["Red"] = "Czerwony",
+        ["Green"] = "Zielony",
+        ["Blue"] = "Niebieski",
+        ["Reset colors"] = "Przywróć kolory",
+        ["Reset"] = "Przywróć",
         ["Flat and quiet: grey cards, one orange accent, no glow."] = "Płasko i spokojnie: szare karty, jeden pomarańczowy akcent, bez poświat.",
         ["Expand the menu"] = "Rozwiń menu",
         ["Collapse the menu"] = "Zwiń menu",

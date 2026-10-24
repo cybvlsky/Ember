@@ -794,6 +794,27 @@ public partial class MainWindow : Window
             Children = { Btn(T("Redraw"), null, false, () => { App.Engine.Redraw(); Toast(T("Redrawing the screen")); }), Gap(), Btn(T("Reconnect"), null, false, () => App.Engine.Reconnect()) },
         });
 
+        Section(T("Screen colors"));
+        FrameworkElement Tune(double min, double max, double value, double step, string fmt, Action<double> set)
+        {
+            var val = new TextBlock { Width = 48, TextAlignment = TextAlignment.Right, Foreground = SubBrush, VerticalAlignment = VerticalAlignment.Center, Text = value.ToString(fmt, L.Culture) };
+            var s = new System.Windows.Controls.Slider { Minimum = min, Maximum = max, Value = value, Width = 240, SmallChange = step, LargeChange = step * 5, TickFrequency = step, IsSnapToTickEnabled = true, VerticalAlignment = VerticalAlignment.Center };
+            s.ValueChanged += (_, e) => { val.Text = e.NewValue.ToString(fmt, L.Culture); set(e.NewValue); App.Engine.Poke(); App.SaveSoon(); };
+            return new StackPanel { Orientation = Orientation.Horizontal, Children = { s, val } };
+        }
+        Row(T("Color temperature"), T("Only changes the panel. Move it right if the screen looks blue."), Tune(-50, 50, cfg.ColorTemp, 1, "+0;-0;0", v => cfg.ColorTemp = (int)Math.Round(v)));
+        Row(T("Gamma"), T("Above 1 darkens the midtones, below 1 lifts them."), Tune(0.6, 1.8, cfg.Gamma, 0.05, "0.00", v => cfg.Gamma = Math.Round(v, 2)));
+        Row(T("Red"), null, Tune(50, 100, cfg.GainR, 1, "0'%'", v => cfg.GainR = (int)Math.Round(v)));
+        Row(T("Green"), null, Tune(50, 100, cfg.GainG, 1, "0'%'", v => cfg.GainG = (int)Math.Round(v)));
+        Row(T("Blue"), null, Tune(50, 100, cfg.GainB, 1, "0'%'", v => cfg.GainB = (int)Math.Round(v)));
+        Row(T("Reset colors"), null, Btn(T("Reset"), null, false, () =>
+        {
+            cfg.ColorTemp = 0; cfg.Gamma = 1; cfg.GainR = cfg.GainG = cfg.GainB = 100;
+            cfg.Save();
+            App.Engine.Poke();
+            BuildSettings();
+        }));
+
         Section(T("Sensors"));
         Row(T("Refresh"), null, Chips(new[] { (500, L.F("{0} s", 0.5)), (1000, "1 s"), (2000, "2 s") }, cfg.Interval, v => { cfg.Interval = v; cfg.Save(); }));
         var gpus = new List<(string, string)> { ("auto", T("Automatic (dedicated card)")) };
