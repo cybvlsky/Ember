@@ -77,13 +77,13 @@ Turn them on under *Apps*. While Claude Code (or the Claude app) is open or musi
 - **Claude Code** reads Claude Code's own session logs in `~/.claude/projects`: cost and tokens in the current five-hour session and when it resets, today, and the month at API prices next to the price of your plan. Once you have hit a limit, the logs say when that session ended and roughly how much it held, which gives an estimate of how much of the limit is used. Nothing is sent anywhere and no credentials are read. Usage on claude.ai or the phone shares the limit but isn't in those logs, so treat the limit as an estimate.
 - **Spotify** comes from the Windows media controls: the cover, title, artist, album and progress, with the progress bar in the cover's colour.
 
-The same values work in your own themes. The editor's *Add* list has *Now playing*, *Album cover* and *Claude usage* blocks, and any text can use keys like `{spotify.title}`, `{spotify.pos:mss}` or `{claude.block.cost:usd}`.
+The same values work in your own themes. The editor's *Add* list has *Music*, *Cover* and *Claude* blocks, and any text can use keys like `{spotify.title}`, `{spotify.pos:mss}` or `{claude.block.cost:usd}`.
 
 ## The app
 
 <img src="docs/app-screen.png" alt="Ember's Screen page: a live mirror of the panel with theme, brightness and sensor status">
 
-The Screen page mirrors the panel live. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable. Turn on *Traffic* and the preview tints every part of the screen that is being sent over USB, so you can see what a theme costs while it runs.
+The Screen page mirrors the panel live. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable. Turn on *Show traffic* and the preview tints every part of the screen that is being sent over USB, so you can see what a theme costs while it runs.
 
 <img src="docs/app-themes.png" alt="Ember's theme gallery with live thumbnails">
 

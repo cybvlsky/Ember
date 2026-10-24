@@ -83,7 +83,7 @@ public partial class MainWindow
                      ("text", "Text", "\uE8D2"), ("value", "Value", "\uE9CA"), ("gauge", "Gauge", "\uEC4A"), ("ring", "Ring", "\uEA3A"),
                      ("bar", "Bar", "\uE9E9"), ("graph", "Graph", "\uE9D2"), ("cores", "Cores", "\uE950"), ("icon", "Icon", "\uE734"),
                      ("rect", "Rectangle", "\uE739"), ("glow", "Glow", "\uE706"), ("image", "Image", "\uEB9F"), ("clock", "Clock", "\uE917"),
-                     ("nowplaying", "Now playing", "\uE8D6"), ("cover", "Album cover", "\uE93C"), ("claude", "Claude usage", "\uE8BD"),
+                     ("nowplaying", "Music", "\uE8D6"), ("cover", "Cover", "\uE93C"), ("claude", "Claude", "\uE8BD"),
                  })
         {
             var sp = new StackPanel { Orientation = Orientation.Horizontal };

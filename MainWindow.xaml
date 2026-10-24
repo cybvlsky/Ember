@@ -380,14 +380,13 @@
                       </Border>
                     </Viewbox>
                     <Grid Margin="2,14,2,0">
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                       <StackPanel Orientation="Horizontal">
                         <Ellipse x:Name="ConnDot" Width="8" Height="8" Fill="{StaticResource Dim}" VerticalAlignment="Center" Margin="0,1,10,0"/>
                         <TextBlock x:Name="ConnText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                       </StackPanel>
                       <TextBlock x:Name="FpsText" Grid.Column="1" Foreground="{StaticResource Sub}" Margin="24,0,0,0" VerticalAlignment="Center" ToolTip="{e:Tr 'Updates per second that reach the panel'}"/>
                       <TextBlock x:Name="BwText" Grid.Column="2" Foreground="{StaticResource Sub}" Margin="24,0,0,0" VerticalAlignment="Center" ToolTip="{e:Tr 'USB link use. The panel takes about 157 KB/s.'}"/>
-                      <CheckBox x:Name="TrafficSwitch" Grid.Column="3" Style="{StaticResource Switch}" Margin="24,0,0,0" VerticalAlignment="Center" Content="{e:Tr Traffic}" ToolTip="{e:Tr 'Tints what is being sent to the panel'}"/>
                     </Grid>
                   </StackPanel>
                 </Border>
@@ -441,11 +440,19 @@
                       </StackPanel>
                     </CheckBox>
                   </Border>
-                  <Border Style="{StaticResource CardBox}" Margin="0,0,0,16">
+                  <Border Style="{StaticResource CardBox}" Margin="0,0,0,4">
                     <CheckBox x:Name="BlankSwitch" Style="{StaticResource Switch}">
                       <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE7E8;" FontFamily="{StaticResource Ico}" FontSize="16" VerticalAlignment="Center" Margin="0,0,14,0"/>
                         <TextBlock Text="{e:Tr 'Turn the screen off'}" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                  </Border>
+                  <Border Style="{StaticResource CardBox}" Margin="0,0,0,16">
+                    <CheckBox x:Name="TrafficSwitch" Style="{StaticResource Switch}">
+                      <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource Ico}" FontSize="16" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                        <StackPanel><TextBlock Text="{e:Tr 'Show traffic'}"/><TextBlock Text="{e:Tr 'Tints what is being sent to the panel'}" Style="{StaticResource SubText}"/></StackPanel>
                       </StackPanel>
                     </CheckBox>
                   </Border>
