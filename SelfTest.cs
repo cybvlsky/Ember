@@ -128,6 +128,55 @@ public static class SelfTest
         using (var intro = Icons.Intro()) Check(intro.Width == FrameDiff.W, "start-up card renders");
         Check(Renderer.Errors == before, $"themes render in both languages without errors ({Renderer.Errors - before})");
 
+        // App screens: in every theme's look, both languages, with and without a cover.
+        before = Renderer.Errors;
+        foreach (var t in themes.Where(t => t.BuiltIn))
+            foreach (var id in new[] { "claude", "spotify" })
+                foreach (var lang in L.Languages)
+                {
+                    L.Lang = lang;
+                    using var bmp = Renderer.Still(Themes.Screen(id, t), Snapshot.Demo(100));
+                    using var empty = Renderer.Still(Themes.Screen(id, t), Snapshot.Empty);
+                }
+        L.Lang = "en";
+        Check(Renderer.Errors == before, $"app screens render in every theme ({Renderer.Errors - before})");
+        Check(Themes.Screen("spotify", themes[0]).Palette["art"] == "a1", "no cover: the theme accent");
+        using (var cover = AppWatch.DemoArt()) AppWatch.ArtColor = AppWatch.Dominant(cover);
+        var onDark = Themes.Screen("spotify", themes.First(t => t.Id == "studio")).Palette["art"];
+        var onLight = Themes.Screen("spotify", themes.First(t => t.Id == "latte")).Palette["art"];
+        AppWatch.ArtColor = null;
+        Check(onDark.StartsWith('#') && onLight.StartsWith('#') && Renderer.ParseHex(onLight)!.Value.Red < Renderer.ParseHex(onDark)!.Value.Red, $"cover colour, darker on a light theme ({onDark} {onLight})");
+        Check(Renderer.Format(83, "mss") == "1:23" && Renderer.Format(3 * 3600 + 5 * 60, "hmm") == "3:05", "format m:ss and h:mm");
+        Check(Renderer.Format(9.4e6, "tok") == "9.4M" && Renderer.Format(340_000, "tok") == "340K" && Renderer.Format(12.5, "usd") == "$12.50", "format tokens and dollars");
+
+        // Rotation: theme 15 s, then each app 10 s, then back.
+        List<string> both = ["claude", "spotify"];
+        Check(Rotation.Next("theme", 14, both, 15, 10) == "theme" && Rotation.Next("theme", 15, both, 15, 10) == "claude", "rotation: theme first");
+        Check(Rotation.Next("claude", 10, both, 15, 10) == "spotify" && Rotation.Next("spotify", 10, both, 15, 10) == "theme", "rotation: apps in turn, then the theme");
+        Check(Rotation.Next("spotify", 2, ["claude"], 15, 10) == "theme" && Rotation.Next("theme", 99, [], 15, 10) == "theme", "rotation: closed apps drop out");
+
+        // Claude Code log lines: streamed duplicates count once, prices per model, limit hits.
+        var cu = new ClaudeUsage();
+        static byte[] U(string s) => System.Text.Encoding.UTF8.GetBytes(s);
+        string Msg(string id, int output, string model = "claude-opus-5-5") =>
+            "{\"type\":\"assistant\",\"timestamp\":\"2026-10-24T10:00:00.000Z\",\"requestId\":\"req_" + id + "\",\"message\":{\"id\":\"msg_" + id
+            + "\",\"model\":\"" + model + "\",\"usage\":{\"input_tokens\":1000000,\"output_tokens\":" + output + ",\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}";
+        cu.Line(U(Msg("a", 10)));
+        cu.Line(U(Msg("a", 1_000_000)));
+        cu.Line(U(Msg("b", 0, "claude-sonnet-4-5-20250929")));
+        cu.Line(U("""{"type":"user","timestamp":"2026-10-24T10:00:00.000Z","message":{"role":"user","content":"what does "usage" mean"}}"""));
+        cu.Line(U("""{"type":"assistant","timestamp":"2026-10-24T10:00:00.000Z","message":{"id":"x","model":"<synthetic>","usage":{"input_tokens":5,"output_tokens":5}}}"""));
+        var v = new Dictionary<string, double>();
+        var sv = new Dictionary<string, string>();
+        cu.Line(U("""{"type":"assistant","timestamp":"2026-10-24T11:00:00.000Z","apiError":"usage_limit_reached","apiErrorParams":{"rate_limit_info":{"status":"rejected","resetsAt":1792854000,"rateLimitType":"five_hour"}}}"""));
+        cu.Rebuild();
+        cu.Publish(v, sv, new Settings { ClaudePlan = "pro" }, new DateTime(2026, 10, 24, 12, 0, 0, DateTimeKind.Utc));
+        Check(cu.Uses.Count == 2, $"Claude log: duplicates and synthetic messages skipped ({cu.Uses.Count})");
+        Check(Math.Abs(v["claude.month.cost"] - 27) < 0.01, $"Claude log: Opus 5.5 $4 + $20, Sonnet 4.5 $3 ({v["claude.month.cost"]:0.00})");
+        Check(Math.Abs(v["claude.value"] - 27 / 20.0) < 0.01, "Claude log: plan value against Pro");
+        Check(v["claude.block.pct"] == 100 && Math.Abs(v["claude.block.left"] - 3 * 3600) < 1 && sv["claude.limit"].StartsWith("Limit reached"), $"Claude log: a limit hit ends the window ({v["claude.block.pct"]}%, {v["claude.block.left"]} s, {sv["claude.limit"]})");
+        Check(ClaudeUsage.Pretty("claude-opus-5-5") == "Opus 5.5" && ClaudeUsage.Pretty("claude-sonnet-4-5-20250929") == "Sonnet 4.5", "Claude model names");
+
         log.Add(fails == 0 ? "ALL OK" : $"{fails} FAILED");
         File.WriteAllLines(Path.Combine(App.DataDir, "selftest.txt"), log);
         foreach (var l in log) Console.WriteLine(l);
@@ -154,6 +203,13 @@ public static class SelfTest
     {
         Directory.CreateDirectory(dir);
         using (var intro = Icons.Intro()) using (var f = File.Create(Path.Combine(dir, "intro.png"))) intro.Encode(f, SKEncodedImageFormat.Png, 100);
+        AppWatch.Art = AppWatch.DemoArt();
+        AppWatch.ArtColor = AppWatch.Dominant(AppWatch.Art);
+        foreach (var look in Themes.LoadAll())
+            foreach (var id in new[] { "claude", "spotify" })
+                using (var bmp = Renderer.Still(Themes.Screen(id, look), Snapshot.Demo(100)))
+                using (var f = File.Create(Path.Combine(dir, $"app-{id}-{look.Id}.png")))
+                    bmp.Encode(f, SKEncodedImageFormat.Png, 100);
         foreach (int size in new[] { 512, 64 })
             using (var logo = Icons.Logo(size)) using (var f = File.Create(Path.Combine(dir, $"logo-{size}.png"))) logo.Encode(f, SKEncodedImageFormat.Png, 100);
         var frames = Path.Combine(dir, "frames");

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Apps: Claude Code and Spotify get their own screens that take turns with the theme while they are in use (theme 15 s, each app 10 s, both adjustable). Each switch fades through black.
+- The Claude Code screen reads Claude Code's logs on the PC: cost and tokens in the current five-hour session and when it resets, the month at API prices compared with the plan price, and an estimate of the session limit once a limit has been hit. Nothing is sent anywhere and no credentials are read.
+- The Spotify screen shows the cover, title, artist, album and progress from the Windows media controls; the progress bar takes its colour from the cover.
+- App screens wear the current theme's background, font and colours.
+- Screen colour correction for panels that come out blue: colour temperature, gamma and per-channel gains. Only the panel is corrected.
+- Needs Windows 10 version 2004 or newer.
+
 ## 1.0.1 - 2026-10-24
 
 - A new look that follows Windows 11: a navigation pane with the categories on the left that folds to icons (by hand, in the editor and in narrow windows), settings in cards, the system font, neutral greys with one accent colour.

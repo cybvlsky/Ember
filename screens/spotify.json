@@ -1,0 +1,25 @@
+{
+  "name": "Spotify",
+  "description": "What Spotify is playing, from the Windows media controls.",
+  "palette": {
+    "card": "#2B2B2B", "text": "#FFFFFF", "sub": "#C5C5C5", "dim": "#8A8A8A", "track": "#3D3D3D", "a1": "#FFA066", "art": "#1DB954"
+  },
+  "widgets": [
+    { "type": "rect", "name": "Track card", "x": 8, "y": 8, "w": 464, "h": 232, "radius": 8, "color": "card" },
+    { "type": "rect", "name": "Progress card", "x": 8, "y": 248, "w": 464, "h": 64, "radius": 8, "color": "card" },
+
+    { "type": "rect", "name": "Cover backdrop", "x": 20, "y": 20, "w": 208, "h": 208, "radius": 6, "color": "track" },
+    { "type": "image", "name": "Cover", "x": 20, "y": 20, "w": 208, "h": 208, "radius": 6, "src": "@art" },
+
+    { "type": "text", "name": "State", "x": 244, "y": 28, "text": "{spotify.state}", "size": 12, "weight": 600, "color": "art" },
+    { "type": "text", "name": "Title", "x": 244, "y": 52, "w": 216, "text": "{spotify.title}", "size": 24, "weight": 600, "mode": "ellipsis" },
+    { "type": "text", "name": "Artist", "x": 244, "y": 86, "w": 216, "text": "{spotify.artist}", "size": 15, "color": "sub", "mode": "ellipsis" },
+    { "type": "text", "name": "Album", "x": 244, "y": 110, "w": 216, "text": "{spotify.album}", "size": 12, "color": "dim", "mode": "ellipsis" },
+    { "type": "text", "name": "Day", "x": 458, "y": 178, "align": "right", "text": "{date:dddd}", "size": 12, "color": "dim" },
+    { "type": "text", "name": "Clock", "x": 458, "y": 198, "align": "right", "text": "{time:HH:mm}", "size": 40, "weight": 600 },
+
+    { "type": "text", "name": "Position", "x": 22, "y": 275, "text": "{spotify.pos:mss}", "size": 13, "weight": 600 },
+    { "type": "bar", "name": "Progress", "x": 72, "y": 277, "w": 336, "h": 6, "radius": 3, "sensor": "spotify.progress", "color": "art", "track": "track" },
+    { "type": "text", "name": "Length", "x": 458, "y": 275, "align": "right", "text": "{spotify.dur:mss}", "size": 13, "color": "sub" }
+  ]
+}

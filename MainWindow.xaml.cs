@@ -48,7 +48,7 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => SetSidebar(true);
         FitToScreen();
 
-        foreach (var (tab, name) in new[] { (NavScreen, "screen"), (NavThemes, "themes"), (NavEditor, "editor"), (NavSensors, "sensors"), (NavSettings, "settings") })
+        foreach (var (tab, name) in new[] { (NavScreen, "screen"), (NavThemes, "themes"), (NavEditor, "editor"), (NavSensors, "sensors"), (NavApps, "apps"), (NavSettings, "settings") })
             tab.Checked += (_, _) => { Show(name); MovePill(tab, true); };
         MinBtn.Click += (_, _) => WindowState = WindowState.Minimized;
         MaxBtn.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
@@ -133,13 +133,13 @@ public partial class MainWindow : Window
     // ---------- shell ----------
 
     public void GoTo(string name) =>
-        (name switch { "themes" => NavThemes, "editor" => NavEditor, "sensors" => NavSensors, "settings" => NavSettings, _ => NavScreen }).IsChecked = true;
+        (name switch { "themes" => NavThemes, "editor" => NavEditor, "sensors" => NavSensors, "apps" => NavApps, "settings" => NavSettings, _ => NavScreen }).IsChecked = true;
 
     void Show(string name)
     {
         if (page == "editor" && name != "editor") StopLiveEdit();
         page = name;
-        var pages = new Dictionary<string, FrameworkElement> { ["screen"] = PageScreen, ["themes"] = PageThemes, ["editor"] = PageEditor, ["sensors"] = PageSensors, ["settings"] = PageSettings };
+        var pages = new Dictionary<string, FrameworkElement> { ["screen"] = PageScreen, ["themes"] = PageThemes, ["editor"] = PageEditor, ["sensors"] = PageSensors, ["apps"] = PageApps, ["settings"] = PageSettings };
         foreach (var (k, el) in pages) el.Visibility = k == name ? Visibility.Visible : Visibility.Collapsed;
         var shown = pages[name];
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
@@ -148,7 +148,8 @@ public partial class MainWindow : Window
         shown.RenderTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
         TopActions.Children.Clear();
         App.Engine.PreviewWanted = name == "screen";
-        PageTitle.Text = name switch { "themes" => T("Themes"), "editor" => T("Editor"), "sensors" => T("Sensors"), "settings" => T("Settings"), _ => T("Screen") };
+        App.Engine.HoldTheme = name == "editor";
+        PageTitle.Text = name switch { "themes" => T("Themes"), "editor" => T("Editor"), "sensors" => T("Sensors"), "apps" => T("Apps"), "settings" => T("Settings"), _ => T("Screen") };
         switch (name)
         {
             case "themes":
@@ -164,6 +165,9 @@ public partial class MainWindow : Window
                 break;
             case "sensors":
                 BuildSensors();
+                break;
+            case "apps":
+                BuildApps();
                 break;
             case "settings":
                 BuildSettings();
@@ -190,6 +194,9 @@ public partial class MainWindow : Window
                 break;
             case "sensors":
                 if (tick % 30 == 0) UpdateSensors();
+                break;
+            case "apps":
+                if (tick % 30 == 0) UpdateApps();
                 break;
         }
         if (tick % 10 == 0) UpdateScreenStatus();
@@ -220,6 +227,7 @@ public partial class MainWindow : Window
         NavEditor.IsChecked = true; await Shot("editor");
         if (draft != null && draft.Widgets.Count > 12) { Select(draft.Widgets.FindIndex(w => w.Type == "gauge")); await Shot("editor-selected"); }
         NavSensors.IsChecked = true; await Shot("sensors");
+        NavApps.IsChecked = true; await Shot("apps");
         NavSettings.IsChecked = true; await Shot("settings");
         await ExerciseEditor(Shot);
     }
@@ -741,11 +749,12 @@ public partial class MainWindow : Window
 
     StackPanel? section;
 
-    void Section(string title)
+    void Section(string title, Panel? into = null)
     {
+        into ??= SettingsPanel;
         section = new StackPanel { Margin = new Thickness(0, 0, 0, 24) };
-        SettingsPanel.Children.Add(new TextBlock { Text = title, Style = (Style)FindResource("Head"), Margin = new Thickness(2, 0, 0, 8) });
-        SettingsPanel.Children.Add(section);
+        into.Children.Add(new TextBlock { Text = title, Style = (Style)FindResource("Head"), Margin = new Thickness(2, 0, 0, 8) });
+        into.Children.Add(section);
     }
 
     /// Label (and an optional line of explanation) on the left, the control on the right.
@@ -853,5 +862,66 @@ public partial class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Children = { Btn("GitHub", null, false, () => App.OpenUrl(App.RepoUrl)), Gap(), Btn(T("Log"), null, false, () => App.OpenFolder(App.DataDir)), Gap(), Btn(T("Quit Ember"), null, false, App.Quit) },
         });
+    }
+
+    // ---------- apps page ----------
+
+    readonly List<(string Id, Image Preview, TextBlock Status)> appCards = new();
+
+    void BuildApps()
+    {
+        AppsPanel.Children.Clear();
+        appCards.Clear();
+        var cfg = App.Cfg;
+        AppCard("claude", "Claude Code", T("Takes turns with the theme while Claude Code or the Claude app is open. Usage comes from Claude Code's logs on this PC, priced at API rates."),
+            cfg.ClaudeApp, v => { cfg.ClaudeApp = v; cfg.Save(); App.Engine.Poke(); UpdateApps(); });
+        Row(T("Plan"), T("The month's usage is compared with its price."),
+            Combo(ClaudeUsage.Plans.Select(p => (p.Id, $"{p.Name} (${p.Price:0})")), cfg.ClaudePlan, v => { cfg.ClaudePlan = v; cfg.Save(); }));
+        AppCard("spotify", "Spotify", T("Takes turns with the theme while music is playing. Cover, title and progress come from the Windows media controls."),
+            cfg.SpotifyApp, v => { cfg.SpotifyApp = v; cfg.Save(); App.Engine.Poke(); UpdateApps(); });
+
+        Section(T("Timing"), AppsPanel);
+        Row(T("Theme"), T("How long the theme stays between app screens."),
+            Chips(new[] { (10, "10 s"), (15, "15 s"), (30, "30 s"), (60, "60 s") }, cfg.ThemeSecs, v => { cfg.ThemeSecs = v; cfg.Save(); }));
+        Row(T("Each app"), null, Chips(new[] { (5, "5 s"), (10, "10 s"), (15, "15 s"), (30, "30 s") }, cfg.AppSecs, v => { cfg.AppSecs = v; cfg.Save(); }));
+        UpdateApps();
+    }
+
+    /// Heading, then a card with a live preview of the app screen in the current theme, what it does and the switch.
+    void AppCard(string id, string name, string hint, bool on, Action<bool> changed)
+    {
+        Section(name, AppsPanel);
+        var img = new Image { Width = 240, Height = 160, Clip = new RectangleGeometry(new Rect(0, 0, 240, 160), 4, 4) };
+        RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+        var status = new TextBlock { FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        var right = new StackPanel { Margin = new Thickness(20, 2, 0, 0) };
+        right.Children.Add(status);
+        right.Children.Add(new TextBlock { Text = hint, Style = (Style)FindResource("SubText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 14) });
+        right.Children.Add(Switch(T("Show on the screen"), null, on, changed));
+        var g = new Grid();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+        g.Children.Add(img);
+        Grid.SetColumn(right, 1);
+        g.Children.Add(right);
+        section!.Children.Add(new Border { Style = (Style)FindResource("CardBox"), Margin = new Thickness(0, 0, 0, 4), Child = g });
+        appCards.Add((id, img, status));
+    }
+
+    /// Live data while the app is in use, sample data otherwise.
+    void UpdateApps()
+    {
+        var s = App.Sensors.Current;
+        foreach (var (id, img, status) in appCards)
+        {
+            bool live = s.Get(id + ".active") > 0;
+            using (var bmp = Renderer.Still(Themes.Screen(id, App.Engine.Theme), live ? s : Snapshot.Demo(100)))
+                img.Source = ToImage(bmp);
+            bool enabled = id == "claude" ? App.Cfg.ClaudeApp : App.Cfg.SpotifyApp;
+            status.Text = !enabled ? T("Off. The preview shows sample data.")
+                : !live ? (id == "claude" ? T("Not running") : T("Nothing playing"))
+                : id == "claude" ? L.F("In use, {0} in this session", Renderer.Format(s.Get("claude.block.cost"), "usd"))
+                : $"{s.Str("spotify.title")} - {s.Str("spotify.artist")}";
+        }
     }
 }

@@ -351,6 +351,7 @@
             <RadioButton x:Name="NavThemes" DockPanel.Dock="Top" Style="{StaticResource Nav}" Tag="&#xE790;" Content="{e:Tr Themes}" GroupName="nav"/>
             <RadioButton x:Name="NavEditor" DockPanel.Dock="Top" Style="{StaticResource Nav}" Tag="&#xE70F;" Content="{e:Tr Editor}" GroupName="nav"/>
             <RadioButton x:Name="NavSensors" DockPanel.Dock="Top" Style="{StaticResource Nav}" Tag="&#xE9D9;" Content="{e:Tr Sensors}" GroupName="nav"/>
+            <RadioButton x:Name="NavApps" DockPanel.Dock="Top" Style="{StaticResource Nav}" Tag="&#xE71D;" Content="{e:Tr Apps}" GroupName="nav"/>
             <RadioButton x:Name="NavSettings" DockPanel.Dock="Bottom" Style="{StaticResource Nav}" Tag="&#xE713;" Content="{e:Tr Settings}" GroupName="nav" Margin="0"/>
           </DockPanel>
         </Grid>
@@ -541,6 +542,11 @@
                 <StackPanel x:Name="SensorList" Margin="0,0,8,8"/>
               </ScrollViewer>
             </Grid>
+
+            <!-- ===== Apps ===== -->
+            <ScrollViewer x:Name="PageApps" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+              <StackPanel x:Name="AppsPanel" MaxWidth="1000" Margin="0,0,8,8"/>
+            </ScrollViewer>
 
             <!-- ===== Settings ===== -->
             <ScrollViewer x:Name="PageSettings" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">

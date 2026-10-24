@@ -41,6 +41,12 @@ public sealed class Settings
     public int GainR { get; set; } = 100;
     public int GainG { get; set; } = 100;
     public int GainB { get; set; } = 100;
+    /// App screens (Apps.cs) that take turns with the theme while the app is in use.
+    public bool ClaudeApp { get; set; }
+    public bool SpotifyApp { get; set; }
+    public string ClaudePlan { get; set; } = "pro";
+    public int ThemeSecs { get; set; } = 15;
+    public int AppSecs { get; set; } = 10;
 
     static string FilePath => Path.Combine(App.DataDir, "settings.json");
 
@@ -279,6 +285,7 @@ public static class App
     public static Settings Cfg = new();
     public static Sensors Sensors = null!;
     public static Engine Engine = null!;
+    public static AppWatch Apps = null!;
     public static List<Theme> AllThemes = new();
     public static System.Windows.Application Wpf = null!;
     static MainWindow? window;
@@ -349,6 +356,8 @@ public static class App
         L.Lang = Cfg.Language;
         AllThemes = Themes.LoadAll();
         var theme = (Shots ? null : AllThemes.FirstOrDefault(t => t.Id == Cfg.Theme)) ?? AllThemes[0];
+        Apps = new AppWatch(Cfg);
+        Apps.Start();
         Sensors = new Sensors(Cfg);
         Sensors.Start();
         Engine = new Engine(Cfg, Sensors, theme);
@@ -447,6 +456,7 @@ public static class App
         if (tray != null) { tray.Visible = false; tray.Dispose(); }
         Engine?.Dispose();
         Sensors?.Dispose();
+        Apps?.Dispose();
         Cfg.Save();
     }
 

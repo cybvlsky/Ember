@@ -126,6 +126,29 @@ public static class Themes
         return list;
     }
 
+    /// An app screen (screens/*.json) in the look of the current theme: its background, font and palette.
+    public static Theme Screen(string id, Theme look)
+    {
+        using var r = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream($"screen.{id}.json")!);
+        var t = Theme.Parse(r.ReadToEnd());
+        t.Id = id;
+        t.BuiltIn = true;
+        t.Bg = look.Bg;
+        t.Font = look.Font;
+        foreach (var (k, v) in look.Palette) t.Palette[k] = v;
+        if (!look.Palette.ContainsKey("card")) t.Palette["card"] = "text/6";
+        // The cover colour, darker on light themes so it still reads as text. No colourful cover: the accent.
+        t.Palette["art"] = "a1";
+        if (AppWatch.ArtColor is { } art)
+        {
+            art.ToHsv(out float h, out float sat, out _);
+            var bg = Renderer.ParseHex(look.Bg) ?? SKColors.Black;
+            if (bg.Red * 0.3 + bg.Green * 0.59 + bg.Blue * 0.11 > 128) art = SKColor.FromHsv(h, Math.Max(sat, 55), 48);
+            t.Palette["art"] = $"#{art.Red:X2}{art.Green:X2}{art.Blue:X2}";
+        }
+        return t;
+    }
+
     public static void Save(Theme t)
     {
         Directory.CreateDirectory(UserDir);
@@ -455,6 +478,10 @@ public sealed class Renderer : IDisposable
             case "rateu": return RateUnit(v);
             case "mbit": return (v * 8 / 1e6).ToString(v * 8 < 1e7 ? "0.0" : "0", Cu);
             case "ghz": return (v / 1000).ToString("0.00", Cu);
+            case "mss": return $"{(int)(v / 60)}:{(int)v % 60:00}";
+            case "hmm": return $"{(int)(v / 3600)}:{(int)(v / 60) % 60:00}";
+            case "tok": return v >= 1e9 ? (v / 1e9).ToString("0.0", Cu) + "B" : v >= 1e6 ? (v / 1e6).ToString("0.0", Cu) + "M" : v >= 1e3 ? (v / 1e3).ToString("0", Cu) + "K" : v.ToString("0", Cu);
+            case "usd": return "$" + v.ToString(v >= 1000 ? "0" : "0.00", Cu);
             default:
                 try { return v.ToString(fmt ?? "0", Cu); }
                 catch (FormatException) { return v.ToString("0", Cu); }
@@ -480,7 +507,17 @@ public sealed class Renderer : IDisposable
             state.Blob?.Dispose();
             using var f0 = MakeFont(tf, size);
             var (blob, width) = Layout(text, f0, w.Spacing ?? 0);
-            if (w.W > 0 && width > w.W && width > 0)
+            if (w.W > 0 && width > w.W && width > 0 && w.Has("ellipsis"))
+            {
+                // Song titles and such: cut at the edge of the box instead of shrinking.
+                for (var cut = text; width > w.W && cut.Length > 1;)
+                {
+                    blob?.Dispose();
+                    cut = cut[..^1].TrimEnd();
+                    (blob, width) = Layout(cut + "…", f0, w.Spacing ?? 0);
+                }
+            }
+            else if (w.W > 0 && width > w.W && width > 0)
             {
                 // Shrink to fit the box (long GPU names and such).
                 blob?.Dispose();
@@ -586,18 +623,20 @@ public sealed class Renderer : IDisposable
 
     void DrawImage(SKCanvas c, Widget w, State state)
     {
-        if (!state.ImgTried)
+        // "@art": the album cover of what is playing (AppWatch owns it, so it is not kept in state.Img).
+        if (!state.ImgTried && w.Src != "@art")
         {
             state.ImgTried = true;
             var path = w.Src == null ? null : Path.IsPathRooted(w.Src) ? w.Src : Path.Combine(Themes.UserDir, w.Src);
             if (path != null && File.Exists(path)) state.Img = SKBitmap.Decode(path);
         }
-        if (state.Img == null) return;
-        var r = SKRect.Create(w.X, w.Y, w.W > 0 ? w.W : state.Img.Width, w.H > 0 ? w.H : state.Img.Height);
+        var bmp = w.Src == "@art" ? AppWatch.Art : state.Img;
+        if (bmp == null) return;
+        var r = SKRect.Create(w.X, w.Y, w.W > 0 ? w.W : bmp.Width, w.H > 0 ? w.H : bmp.Height);
         using var p = new SKPaint { IsAntialias = true, Color = SKColors.White.WithAlpha((byte)(255 * (w.Opacity ?? 1))) };
         c.Save();
         if (w.Radius is > 0) c.ClipRoundRect(new SKRoundRect(r, w.Radius.Value), SKClipOperation.Intersect, true);
-        using var img = SKImage.FromBitmap(state.Img);
+        using var img = SKImage.FromBitmap(bmp);
         c.DrawImage(img, r, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), p);
         c.Restore();
     }

@@ -52,6 +52,7 @@ public sealed class Snapshot
         Set("disk.used", 61); Set("disk.free", 362); Set("disk.total", 931); Set("disk.temp", 41);
         s.S["cpu.name"] = "Ryzen 5 9600X"; s.S["gpu.name"] = "RTX 5060 Ti"; s.S["net.name"] = "Ethernet";
         s.S["disk.name"] = "Lexar NM790"; s.S["sys.uptime"] = "3 h 24 min";
+        AppWatch.Demo(s);
         foreach (var k in Sensors.HistoryKeys)
         {
             if (!s.V.TryGetValue(k, out var v)) continue;
@@ -205,6 +206,7 @@ public sealed class Sensors : IDisposable
         if (pc != null) Lhm(s);
         if (!s.V.ContainsKey("cpu.load")) CpuFallback(s);
         s.S["sys.uptime"] = Uptime(TimeSpan.FromMilliseconds(Environment.TickCount64));
+        App.Apps?.Merge(s);
 
         int slot = (int)(seq % Snapshot.HistoryLength);
         foreach (var (k, ring) in rings)

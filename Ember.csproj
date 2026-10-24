@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="themes\*.json" LogicalName="theme.%(Filename).json" />
+    <EmbeddedResource Include="screens\*.json" LogicalName="screen.%(Filename).json" />
     <Resource Include="app.ico" Condition="Exists('app.ico')" />
   </ItemGroup>
 

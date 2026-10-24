@@ -238,9 +238,19 @@ public sealed class Engine : IDisposable
     SKBitmap? introFrame;
     byte[]? lut;
     (int, double, int, int, int)? lutFor;
+    // App screens take turns with the theme (Rotation). `screen` is what is drawn; `switchTo` waits for the fade out.
+    volatile string screen = "theme";
+    string? switchTo;
+    double shownAt = Clock.Now;
+    readonly List<string> apps = new(2);
+    Theme? appScreen, appLook;
+    string? appFor;
+    int appArt;
     const double FadeIn = 0.7, Hold = 2.8, FadeOut = 0.5, DrawTimeout = 4;
 
     public volatile bool PreviewWanted;
+    /// The theme editor is open: no app screens over the theme being edited.
+    public volatile bool HoldTheme;
     public volatile string Status = L.T("Looking for the screen…");
     public volatile bool Connected, Searching = true;
     public volatile string Port = "";
@@ -255,7 +265,7 @@ public sealed class Engine : IDisposable
         introDue = cfg.Intro && !Sensors.Demo;
     }
 
-    public Theme Theme { get => theme; set { theme = value; wake.Set(); } }
+    public Theme Theme { get => theme; set { theme = value; screen = "theme"; shownAt = Clock.Now; wake.Set(); } }
     public bool Blank { get => userBlank; set { userBlank = value; wake.Set(); } }
     public bool MonitorsOff { set { monitorsOff = value; wake.Set(); } }
     public void Poke() => wake.Set();
@@ -314,8 +324,11 @@ public sealed class Engine : IDisposable
             try
             {
                 bool active = !suspended && !userBlank && !(monitorsOff && cfg.SleepWithMonitors);
-                bool fresh = renderer == null || renderer.Theme != theme;
-                if (fresh) { renderer?.Dispose(); renderer = new Renderer(theme); }
+                var snap = sensors.Current;
+                if (phase == 0) Rotate(snap, t0, lcd.IsOpen && active);
+                var showing = Showing();
+                bool fresh = renderer == null || renderer.Theme != showing;
+                if (fresh) { renderer?.Dispose(); renderer = new Renderer(showing); }
                 if (reconnect) { reconnect = false; Disconnect(L.T("Reconnecting…")); nextTry = 0; }
                 if (invalidate) { invalidate = false; diff.Invalidate(); }
 
@@ -337,7 +350,7 @@ public sealed class Engine : IDisposable
                 using (var c = new SKCanvas(frame))
                 {
                     if (intro) c.DrawBitmap(introFrame ??= Icons.Intro(), 0, 0);
-                    else renderer!.Render(c, sensors.Current, fresh ? 0 : dt, t0);
+                    else renderer!.Render(c, snap, fresh ? 0 : dt, t0);
                 }
                 RenderMs = (float)((Clock.Now - r0) * 1000);
                 if (PreviewWanted)
@@ -414,7 +427,7 @@ public sealed class Engine : IDisposable
             case 2:
                 double k = Math.Min(1, (now - phaseAt) / FadeIn);
                 Backlight((int)Math.Round(cfg.Brightness * Ease(k)));
-                if (k >= 1) { phase = intro ? 3 : 0; phaseAt = now; }
+                if (k >= 1) { phase = intro ? 3 : 0; phaseAt = now; shownAt = now; }
                 break;
             case 3 when now - phaseAt >= Hold:
                 phase = 4; phaseAt = now;
@@ -422,12 +435,47 @@ public sealed class Engine : IDisposable
             case 4:
                 double j = Math.Min(1, (now - phaseAt) / FadeOut);
                 Backlight((int)Math.Round(cfg.Brightness * (1 - Ease(j))));
-                if (j >= 1) { intro = false; phase = 1; phaseAt = now; }
+                if (j >= 1)
+                {
+                    intro = false;
+                    if (switchTo != null) { screen = switchTo; switchTo = null; }
+                    phase = 1; phaseAt = now;
+                }
                 break;
         }
     }
 
     static double Ease(double k) => k * k * (3 - 2 * k);
+
+    /// The theme for ThemeSecs, then each app in use for AppSecs. On the panel every switch fades through black,
+    /// like start-up: the link needs a couple of seconds for a whole new screen and the dark hides the redraw.
+    void Rotate(Snapshot s, double now, bool onPanel)
+    {
+        if (switchTo != null) { screen = switchTo; switchTo = null; shownAt = now; } // the fade was cut short
+        apps.Clear();
+        if (!HoldTheme && cfg.ClaudeApp && s.Get("claude.active") > 0) apps.Add("claude");
+        if (!HoldTheme && cfg.SpotifyApp && s.Get("spotify.active") > 0) apps.Add("spotify");
+        var next = Rotation.Next(screen, now - shownAt, apps, Math.Max(3, cfg.ThemeSecs), Math.Max(3, cfg.AppSecs));
+        if (next == screen) return;
+        Log.Info($"screen: {next}");
+        if (onPanel) { switchTo = next; phase = 4; phaseAt = now; }
+        else { screen = next; shownAt = now; }
+    }
+
+    Theme Showing()
+    {
+        var id = screen;
+        if (id == "theme") return theme;
+        // Rebuilt when the theme changes (the screen wears its colours) or a new cover arrives.
+        if (appScreen == null || appFor != id || appLook != theme || appArt != AppWatch.ArtVersion)
+        {
+            appArt = AppWatch.ArtVersion;
+            appScreen = Themes.Screen(id, theme);
+            appFor = id;
+            appLook = theme;
+        }
+        return appScreen;
+    }
 
     void Connect()
     {

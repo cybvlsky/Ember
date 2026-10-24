@@ -1,0 +1,40 @@
+{
+  "name": "Claude Code",
+  "description": "Usage from Claude Code's own logs, priced at API rates.",
+  "palette": {
+    "card": "#2B2B2B", "text": "#FFFFFF", "sub": "#C5C5C5", "dim": "#8A8A8A", "track": "#3D3D3D", "a1": "#FFA066"
+  },
+  "widgets": [
+    { "type": "rect", "name": "Session card", "x": 8, "y": 8, "w": 228, "h": 152, "radius": 8, "color": "card" },
+    { "type": "rect", "name": "Month card", "x": 244, "y": 8, "w": 228, "h": 152, "radius": 8, "color": "card" },
+    { "type": "rect", "name": "Bottom card", "x": 8, "y": 168, "w": 464, "h": 144, "radius": 8, "color": "card" },
+
+    { "type": "text", "name": "Session", "x": 22, "y": 20, "text": "Current session", "size": 13, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "Model", "x": 140, "y": 21, "w": 82, "align": "right", "text": "{claude.model}", "size": 11, "color": "dim" },
+    { "type": "gauge", "name": "Session ring", "x": 22, "y": 52, "w": 92, "h": 92, "sensor": "claude.block.elapsed", "thickness": 7, "color": "a1", "track": "track", "mode": "flat" },
+    { "type": "text", "name": "Time left", "x": 68, "y": 80, "align": "center", "text": "{claude.block.left:hmm}", "size": 20, "weight": 600 },
+    { "type": "text", "name": "Left", "x": 68, "y": 104, "align": "center", "text": "left", "size": 11, "color": "dim" },
+    { "type": "text", "name": "Session cost", "x": 120, "y": 52, "w": 102, "align": "right", "text": "{claude.block.cost:usd}", "size": 34, "weight": 600 },
+    { "type": "text", "name": "Session tokens", "x": 120, "y": 108, "w": 102, "align": "right", "text": "{claude.block.tokens:tok} tokens", "size": 13, "color": "sub" },
+    { "type": "text", "name": "Reset", "x": 120, "y": 127, "w": 102, "align": "right", "text": "{claude.resetText}", "size": 13, "color": "sub" },
+
+    { "type": "text", "name": "Month", "x": 258, "y": 20, "text": "This month", "size": 13, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "API prices", "x": 458, "y": 21, "align": "right", "text": "at API prices", "size": 11, "color": "dim" },
+    { "type": "text", "name": "Month cost", "x": 258, "y": 50, "w": 200, "text": "{claude.month.cost:usd}", "size": 44, "weight": 600 },
+    { "type": "text", "name": "Plan value", "x": 258, "y": 108, "w": 200, "text": "{claude.value}", "size": 13, "weight": 600, "color": "a1" },
+    { "type": "text", "name": "Today cost", "x": 258, "y": 127, "w": 200, "text": "Today {claude.today.cost:usd}", "size": 13, "color": "sub" },
+
+    { "type": "text", "name": "Limit", "x": 22, "y": 182, "text": "Session limit", "size": 12, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "Limit value", "x": 458, "y": 182, "align": "right", "text": "{claude.block.pct:0}%", "size": 12, "weight": 600 },
+    { "type": "bar", "name": "Limit bar", "x": 22, "y": 202, "w": 436, "h": 6, "radius": 3, "sensor": "claude.block.pct", "color": "a1", "track": "track", "warn": 75, "crit": 90 },
+    { "type": "text", "name": "Limit note", "x": 22, "y": 218, "w": 436, "text": "{claude.limit}", "size": 11, "color": "dim" },
+
+    { "type": "text", "name": "Tokens label", "x": 22, "y": 250, "text": "Tokens today", "size": 11, "color": "dim" },
+    { "type": "text", "name": "Tokens today", "x": 22, "y": 268, "w": 92, "text": "{claude.today.tokens:tok}", "size": 20, "weight": 600 },
+    { "type": "text", "name": "Sessions label", "x": 126, "y": 250, "text": "Sessions", "size": 11, "color": "dim" },
+    { "type": "text", "name": "Sessions", "x": 126, "y": 268, "w": 92, "text": "{claude.sessions:0}", "size": 20, "weight": 600 },
+    { "type": "text", "name": "Status label", "x": 230, "y": 250, "text": "Status", "size": 11, "color": "dim" },
+    { "type": "text", "name": "Status", "x": 230, "y": 268, "w": 110, "text": "{claude.status}", "size": 20, "weight": 600 },
+    { "type": "text", "name": "Clock", "x": 458, "y": 254, "align": "right", "text": "{time:HH:mm}", "size": 40, "weight": 600 }
+  ]
+}
