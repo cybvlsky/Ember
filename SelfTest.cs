@@ -140,10 +140,10 @@ public static class SelfTest
         Directory.CreateDirectory(dir);
         using (var intro = Icons.Intro()) using (var f = File.Create(Path.Combine(dir, "intro.png"))) intro.Encode(f, SKEncodedImageFormat.Png, 100);
         foreach (int size in new[] { 512, 64 })
-            using (var logo = Icons.Logo(size, size > 64)) using (var f = File.Create(Path.Combine(dir, $"logo-{size}.png"))) logo.Encode(f, SKEncodedImageFormat.Png, 100);
+            using (var logo = Icons.Logo(size)) using (var f = File.Create(Path.Combine(dir, $"logo-{size}.png"))) logo.Encode(f, SKEncodedImageFormat.Png, 100);
         var frames = Path.Combine(dir, "frames");
         Directory.CreateDirectory(frames);
-        using (var r = new Renderer(Themes.LoadAll().First(t => t.Id == "ember")))
+        using (var r = new Renderer(Themes.LoadAll().First(t => t.Id == "studio")))
         using (var frame = new SKBitmap(FrameDiff.W, FrameDiff.H, SKColorType.Bgra8888, SKAlphaType.Premul))
         using (var c = new SKCanvas(frame))
             for (int i = 0; i < 150; i++)

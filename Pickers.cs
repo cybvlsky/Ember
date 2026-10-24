@@ -23,7 +23,7 @@ sealed class ColorPicker : Popup
     readonly Border hueThumb = Knob(), alphaThumb = Knob();
     readonly Rectangle alphaFill = new() { Height = 12, Width = SW, RadiusX = 6, RadiusY = 6 };
     readonly TextBox hex = new() { Width = 120, FontFamily = new FontFamily("Cascadia Mono, JetBrains Mono, Consolas") };
-    readonly Border preview = new() { Width = 30, Height = 30, CornerRadius = new CornerRadius(8), BorderBrush = MainWindow.Br("#27303F"), BorderThickness = new Thickness(1) };
+    readonly Border preview = new() { Width = 30, Height = 30, CornerRadius = new CornerRadius(8), BorderBrush = MainWindow.Br("#454545"), BorderThickness = new Thickness(1) };
     double h, s, v, a = 1;
     bool quiet;
 
@@ -31,7 +31,7 @@ sealed class ColorPicker : Popup
     {
         this.picked = picked;
         PlacementTarget = target;
-        TextElement.SetFontFamily(this, new FontFamily(new Uri("pack://application:,,,/"), "/Ember;component/fonts/#Inter, Segoe UI"));
+        TextElement.SetFontFamily(this, new FontFamily("Segoe UI Variable Text, Segoe UI"));
         Placement = PlacementMode.Bottom;
         StaysOpen = false;
         AllowsTransparency = true;
@@ -43,7 +43,7 @@ sealed class ColorPicker : Popup
         a = c.Alpha / 255.0;
 
         var root = new StackPanel { Width = SW };
-        root.Children.Add(new TextBlock { Text = L.T("Theme palette"), FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = MainWindow.Br("#8A94A6"), Margin = new Thickness(0, 0, 0, 8) });
+        root.Children.Add(new TextBlock { Text = L.T("Theme palette"), FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = MainWindow.Br("#C5C5C5"), Margin = new Thickness(0, 0, 0, 8) });
         var pal = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
         foreach (var (name, _) in theme.Palette)
         {
@@ -51,7 +51,7 @@ sealed class ColorPicker : Popup
             var sw = new Border
             {
                 Width = 24, Height = 24, CornerRadius = new CornerRadius(12), Margin = new Thickness(0, 0, 6, 6), Cursor = Cursors.Hand,
-                Background = Checker(), ToolTip = name, BorderBrush = current == name ? MainWindow.Br("#FF9A3D") : MainWindow.Br("#27303F"), BorderThickness = new Thickness(current == name ? 2 : 1),
+                Background = Checker(), ToolTip = name, BorderBrush = current == name ? MainWindow.Br("#FFA066") : MainWindow.Br("#454545"), BorderThickness = new Thickness(current == name ? 2 : 1),
                 Child = new Border { CornerRadius = new CornerRadius(12), Background = new SolidColorBrush(Color.FromArgb(col.Alpha, col.Red, col.Green, col.Blue)) },
             };
             var n = name;
@@ -113,20 +113,20 @@ sealed class ColorPicker : Popup
 
         Child = new Border
         {
-            Background = MainWindow.Br("#121821"), BorderBrush = MainWindow.Br("#2C3646"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(14),
+            Background = MainWindow.Br("#2D2D2D"), BorderBrush = MainWindow.Br("#454545"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(14),
             Child = root, Margin = new Thickness(10), Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 30, ShadowDepth = 8, Opacity = 0.55 },
         };
         Sync(true);
         IsOpen = true;
     }
 
-    static Border Knob() => new() { Width = 8, Height = 16, CornerRadius = new CornerRadius(4), Background = Brushes.White, BorderBrush = MainWindow.Br("#0B0E13"), BorderThickness = new Thickness(1.5), Margin = new Thickness(0, -2, 0, 0) };
+    static Border Knob() => new() { Width = 8, Height = 16, CornerRadius = new CornerRadius(4), Background = Brushes.White, BorderBrush = MainWindow.Br("#202020"), BorderThickness = new Thickness(1.5), Margin = new Thickness(0, -2, 0, 0) };
 
     public static Brush Checker()
     {
         var g = new DrawingGroup();
-        g.Children.Add(new GeometryDrawing(MainWindow.Br("#3A4252"), null, new RectangleGeometry(new Rect(0, 0, 8, 8))));
-        g.Children.Add(new GeometryDrawing(MainWindow.Br("#262C38"), null, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 0, 4, 4)), new RectangleGeometry(new Rect(4, 4, 4, 4)) } }));
+        g.Children.Add(new GeometryDrawing(MainWindow.Br("#505050"), null, new RectangleGeometry(new Rect(0, 0, 8, 8))));
+        g.Children.Add(new GeometryDrawing(MainWindow.Br("#3A3A3A"), null, new GeometryGroup { Children = { new RectangleGeometry(new Rect(0, 0, 4, 4)), new RectangleGeometry(new Rect(4, 4, 4, 4)) } }));
         var b = new DrawingBrush(g) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 8, 8), ViewportUnits = BrushMappingMode.Absolute };
         b.Freeze();
         return b;
@@ -186,7 +186,7 @@ sealed class SensorPicker : Popup
     public SensorPicker(FrameworkElement target, bool allowNone, Action<SensorInfo?> picked)
     {
         PlacementTarget = target;
-        TextElement.SetFontFamily(this, new FontFamily(new Uri("pack://application:,,,/"), "/Ember;component/fonts/#Inter, Segoe UI"));
+        TextElement.SetFontFamily(this, new FontFamily("Segoe UI Variable Text, Segoe UI"));
         Placement = PlacementMode.Bottom;
         StaysOpen = false;
         AllowsTransparency = true;
@@ -205,7 +205,7 @@ sealed class SensorPicker : Popup
         }
         foreach (var g in all.GroupBy(x => x.Group))
         {
-            list.Children.Add(new TextBlock { Text = L.T(g.Key), FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = MainWindow.Br("#8A94A6"), Margin = new Thickness(6, 10, 0, 4) });
+            list.Children.Add(new TextBlock { Text = L.T(g.Key), FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = MainWindow.Br("#C5C5C5"), Margin = new Thickness(6, 10, 0, 4) });
             foreach (var info in g)
             {
                 var val = snap.Str(info.Key) ?? (double.IsNaN(snap.Get(info.Key)) ? "" : snap.Get(info.Key).ToString(snap.Get(info.Key) < 10 ? "0.0" : "0", L.Culture) + " " + info.Unit);
@@ -229,7 +229,7 @@ sealed class SensorPicker : Popup
         root.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Child = new Border
         {
-            Background = MainWindow.Br("#121821"), BorderBrush = MainWindow.Br("#2C3646"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12),
+            Background = MainWindow.Br("#2D2D2D"), BorderBrush = MainWindow.Br("#454545"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12),
             Child = root, Margin = new Thickness(10), Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 30, ShadowDepth = 8, Opacity = 0.55 },
         };
         IsOpen = true;
@@ -242,14 +242,14 @@ sealed class SensorPicker : Popup
         g.ColumnDefinitions.Add(new ColumnDefinition());
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var left = new StackPanel();
-        left.Children.Add(new TextBlock { Text = label, Foreground = MainWindow.Br("#E8ECF2"), FontSize = 12.5, TextTrimming = TextTrimming.CharacterEllipsis });
-        if (key.Length > 0) left.Children.Add(new TextBlock { Text = key, Foreground = MainWindow.Br("#5E697C"), FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis });
+        left.Children.Add(new TextBlock { Text = label, Foreground = MainWindow.Br("#FFFFFF"), FontSize = 12.5, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (key.Length > 0) left.Children.Add(new TextBlock { Text = key, Foreground = MainWindow.Br("#9A9A9A"), FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis });
         g.Children.Add(left);
-        var v = new TextBlock { Text = value, Foreground = MainWindow.Br("#8A94A6"), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+        var v = new TextBlock { Text = value, Foreground = MainWindow.Br("#C5C5C5"), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
         Grid.SetColumn(v, 1);
         g.Children.Add(v);
         var b = new Border { Child = g, Padding = new Thickness(8, 5, 8, 5), CornerRadius = new CornerRadius(8), Background = Brushes.Transparent, Cursor = Cursors.Hand };
-        b.MouseEnter += (_, _) => b.Background = MainWindow.Br("#1A212C");
+        b.MouseEnter += (_, _) => b.Background = MainWindow.Br("#383838");
         b.MouseLeave += (_, _) => b.Background = Brushes.Transparent;
         return b;
     }

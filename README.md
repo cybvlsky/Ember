@@ -17,7 +17,7 @@
 > **Ember is vibe-coded.** The code was written by [Claude Opus 5.5](https://www.anthropic.com/claude-opus-5-5), Anthropic's AI model, working from my prompts. I directed the project, tested every build on a real screen and decided what went in. More in [How this was built](#how-this-was-built).
 
 <p align="center">
-  <img src="docs/hero.webp" width="760" alt="The Ember theme on a Turing Smart Screen 3.5 inch: CPU and GPU load and temperature in rings, RAM, disk, a network graph and a clock">
+  <img src="docs/hero.webp" width="760" alt="The Studio theme on a Turing Smart Screen 3.5 inch: CPU and GPU load and temperature, RAM, disk, a network graph and a clock">
 </p>
 
 The little 3.5" screens sold as Turing Smart Screen, TURZX or USB35INCHIPSV2 come with an app that updates about once a second. Ember runs in the tray, starts with Windows and keeps the screen moving: gauges sweep, the network graph runs like a scope trace and the seconds flow, for about 0.3% of the CPU.
@@ -36,24 +36,28 @@ Windows 10 or 11, 64-bit.
 
 ## Themes
 
-Eight come built in. Every one of them was tuned against the link budget described [below](#why-the-stock-software-runs-at-1-fps), so they stay smooth on the real panel, not only in screenshots.
+Nine come built in. Every one of them was tuned against the link budget described [below](#why-the-stock-software-runs-at-1-fps), so they stay smooth on the real panel, not only in screenshots.
 
 <table>
   <tr>
+    <td width="50%"><img src="docs/themes/studio.png" alt="Studio theme"><br><b>Studio</b> (default)<br>Flat and quiet: grey cards, one orange accent, no glow.</td>
     <td width="50%"><img src="docs/themes/ember.png" alt="Ember theme"><br><b>Ember</b><br>Warm amber. CPU and GPU in rings, the network as a scope trace, a clock with flowing seconds.</td>
-    <td width="50%"><img src="docs/themes/aurora.png" alt="Aurora theme"><br><b>Aurora</b><br>Teal and violet on frosted glass. Temperatures in the big arcs, load in the inner ring.</td>
   </tr>
   <tr>
+    <td><img src="docs/themes/aurora.png" alt="Aurora theme"><br><b>Aurora</b><br>Teal and violet on frosted glass. Temperatures in the big arcs, load in the inner ring.</td>
     <td><img src="docs/themes/clock.png" alt="Clock theme"><br><b>Clock</b><br>A big clock with a smooth seconds ring and temperatures on the sides.</td>
+  </tr>
+  <tr>
     <td><img src="docs/themes/cores.png" alt="Cores theme"><br><b>Cores</b><br>Every CPU thread as its own bar, so you can see what the processor is really doing.</td>
-  </tr>
-  <tr>
     <td><img src="docs/themes/latte.png" alt="Latte theme"><br><b>Latte</b><br>Light and warm: cream tiles, soft shadows, a caramel accent.</td>
-    <td><img src="docs/themes/mono.png" alt="Mono theme"><br><b>Mono</b><br>Black, white and big thin digits. Readable from across the room.</td>
   </tr>
   <tr>
+    <td><img src="docs/themes/mono.png" alt="Mono theme"><br><b>Mono</b><br>Black, white and big thin digits. Readable from across the room.</td>
     <td><img src="docs/themes/neon.png" alt="Neon theme"><br><b>Neon</b><br>Magenta and cyan, segmented LED gauges, glowing digits.</td>
+  </tr>
+  <tr>
     <td><img src="docs/themes/terminal.png" alt="Terminal theme"><br><b>Terminal</b><br>Green phosphor and scope traces, for people who live in a console.</td>
+    <td></td>
   </tr>
 </table>
 
@@ -61,7 +65,7 @@ Eight come built in. Every one of them was tuned against the link budget describ
 
 <img src="docs/app-screen.png" alt="Ember's Screen page: a live mirror of the panel with theme, brightness and sensor status">
 
-The Screen page mirrors the panel live. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable. The sidebar keeps a small live copy of the panel on every page.
+The Screen page mirrors the panel live. From here you switch themes, set brightness and rotation, and see at a glance whether CPU temperature is readable.
 
 <img src="docs/app-themes.png" alt="Ember's theme gallery with live thumbnails">
 
@@ -69,7 +73,7 @@ The gallery thumbnails run on your own sensor data. Click one to put it on the s
 
 <img src="docs/app-editor.png" alt="Ember's layout editor with a gauge selected">
 
-The editor is a canvas with layers. Drag things, resize them, let them snap to each other's edges and centres, and change any property on the right. Everything can be undone. Turn on *Live on the screen* and each change lands on the panel while you make it. The sidebar folds into an icon rail while you edit, so the canvas gets the room.
+The editor is a canvas with layers. Drag things, resize them, let them snap to each other's edges and centres, and change any property on the right. Everything can be undone. Turn on *Live on the screen* and each change lands on the panel while you make it. The navigation pane folds to icons while you edit, so the canvas gets the room.
 
 The tray icon has the rest: theme, brightness, turn the screen off, quit. When Windows turns the monitors off or the PC goes to sleep, the panel goes dark too.
 
@@ -179,7 +183,6 @@ I'm not hiding the AI involvement. Ember is open source because the stock softwa
 - [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (MPL 2.0) reads the sensors.
 - [PawnIO](https://github.com/namazso/PawnIO.Setup) by namazso gives it safe access to the CPU.
 - [SkiaSharp](https://github.com/mono/SkiaSharp) (MIT) draws everything.
-- [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL OFL 1.1) is the interface font.
 - [turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python) by mathoudebine documented the panel's protocol.
 
 Ember is not affiliated with Turing or TURZX.

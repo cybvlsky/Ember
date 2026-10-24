@@ -17,8 +17,8 @@ subprocess.run([exe, "--render", os.path.join(tmp, "render")], check=True)
 subprocess.run([exe, "--no-elevate", "--demo", "--language", "en", "--screenshots", os.path.join(tmp, "shots")], check=True)
 render, shots = os.path.join(tmp, "render"), os.path.join(tmp, "shots")
 
-BG_TOP, BG_BOTTOM = (18, 24, 33), (11, 14, 19)
-THEMES = ["ember", "aurora", "clock", "cores", "latte", "mono", "neon", "terminal"]
+BG_TOP, BG_BOTTOM = (34, 34, 34), (28, 28, 28)
+THEMES = ["studio", "ember", "aurora", "clock", "cores", "latte", "mono", "neon", "terminal"]
 
 
 def gradient(w, h, top, bottom):
@@ -39,11 +39,11 @@ def rounded(size, radius):
 def device(scale):
     """The panel's black bezel, as drawn on Ember's Screen page."""
     w, h, pad = round(540 * scale), round(380 * scale), round(30 * scale)
-    body = gradient(w, h, (10, 13, 18), (6, 8, 11)).convert("RGBA")
+    body = gradient(w, h, (16, 16, 16), (11, 11, 11)).convert("RGBA")
     # A hairline edge, lit from above like the real glass.
     edge_mask = Image.new("L", (w, h), 0)
     ImageDraw.Draw(edge_mask).rounded_rectangle([0, 0, w - 1, h - 1], round(12 * scale), outline=255, width=max(1, round(scale / 2)))
-    edge = gradient(w, h, (44, 54, 70), (24, 30, 40)).convert("RGBA")
+    edge = gradient(w, h, (64, 64, 64), (34, 34, 34)).convert("RGBA")
     edge.putalpha(edge_mask)
     body.alpha_composite(edge)
     body.putalpha(rounded((w, h), round(12 * scale)))
@@ -92,18 +92,18 @@ social.paste(dev, (1280 - dev.width + 40, 20))
 logo = Image.open(os.path.join(render, "logo-512.png")).resize((120, 120), Image.LANCZOS)
 social.alpha_composite(logo, (70, 170))
 d = ImageDraw.Draw(social)
-bold = ImageFont.truetype(os.path.join(root, "fonts", "Inter-Bold.ttf"), 80)
-reg = ImageFont.truetype(os.path.join(root, "fonts", "Inter-Regular.ttf"), 28)
-d.text((66, 306), "Ember", font=bold, fill=(232, 236, 242))
-d.text((74, 410), "for the Turing Smart Screen 3.5\"", font=reg, fill=(166, 157, 148))
-d.text((74, 450), "github.com/cybvlsky/Ember", font=reg, fill=(117, 109, 102))
+bold = ImageFont.truetype("seguisb.ttf", 80)
+reg = ImageFont.truetype("segoeui.ttf", 28)
+d.text((66, 306), "Ember", font=bold, fill=(255, 255, 255))
+d.text((74, 410), "for the Turing Smart Screen 3.5\"", font=reg, fill=(197, 197, 197))
+d.text((74, 450), "github.com/cybvlsky/Ember", font=reg, fill=(154, 154, 154))
 social.convert("RGB").save(os.path.join(docs, "social.png"), optimize=True)
 
 # Every built-in theme in a slim bezel.
 for t in THEMES:
     img = frame_at(os.path.join(render, t + ".png"), size)
     pad = 18
-    out = Image.new("RGBA", (size[0] + 2 * pad, size[1] + 2 * pad), (6, 8, 11, 255))
+    out = Image.new("RGBA", (size[0] + 2 * pad, size[1] + 2 * pad), (12, 12, 12, 255))
     out.paste(img, (pad, pad))
     out.putalpha(rounded(out.size, 16))
     out.save(os.path.join(docs, "themes", t + ".png"), optimize=True)

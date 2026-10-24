@@ -20,7 +20,7 @@ namespace Ember;
 
 public sealed class Settings
 {
-    public string Theme { get; set; } = "ember";
+    public string Theme { get; set; } = "studio";
     public int Brightness { get; set; } = 50;
     public bool Flip { get; set; } = true;
     public int Fps { get; set; } = 30;
@@ -463,7 +463,7 @@ static class Tray
     public static NotifyIcon Create()
     {
         var ni = new NotifyIcon { Icon = Icons.Tray(), Text = "Ember", Visible = true };
-        var menu = new ContextMenuStrip { Renderer = new DarkRenderer(), ShowImageMargin = false, ShowCheckMargin = true, Font = new Font("Bahnschrift", 10f) };
+        var menu = new ContextMenuStrip { Renderer = new DarkRenderer(), ShowImageMargin = false, ShowCheckMargin = true, Font = new Font("Segoe UI", 9.5f) };
         menu.Opening += (_, _) => Fill(menu);
         Fill(menu);
         ni.ContextMenuStrip = menu;
@@ -511,7 +511,7 @@ static class Tray
 
     sealed class DarkRenderer : ToolStripProfessionalRenderer
     {
-        static readonly Color Text = Color.FromArgb(0xEE, 0xE8, 0xE2), Dim = Color.FromArgb(0x75, 0x6D, 0x66), Accent = Color.FromArgb(0xFF, 0x6A, 0x1F);
+        static readonly Color Text = Color.FromArgb(0xFF, 0xFF, 0xFF), Dim = Color.FromArgb(0x9A, 0x9A, 0x9A), Accent = Color.FromArgb(0xFF, 0xA0, 0x66);
 
         public DarkRenderer() : base(new Colors()) => RoundedEdges = false;
 
@@ -523,7 +523,7 @@ static class Tray
 
         protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
         {
-            e.ArrowColor = Color.FromArgb(0xA6, 0x9D, 0x94);
+            e.ArrowColor = Color.FromArgb(0xC5, 0xC5, 0xC5);
             base.OnRenderArrow(e);
         }
 
@@ -538,7 +538,7 @@ static class Tray
 
         sealed class Colors : ProfessionalColorTable
         {
-            static readonly Color Bg = Color.FromArgb(0x2A, 0x27, 0x25), Hover = Color.FromArgb(0x3A, 0x36, 0x33), Line = Color.FromArgb(0x3A, 0x36, 0x33);
+            static readonly Color Bg = Color.FromArgb(0x2C, 0x2C, 0x2C), Hover = Color.FromArgb(0x38, 0x38, 0x38), Line = Color.FromArgb(0x3A, 0x3A, 0x3A);
             public override Color ToolStripDropDownBackground => Bg;
             public override Color ImageMarginGradientBegin => Bg;
             public override Color ImageMarginGradientMiddle => Bg;
@@ -559,35 +559,29 @@ static class Tray
     }
 }
 
-/// The ember mark, a coal with glowing cracks. Drawn with Skia so the tray, the window, the exe icon and the panel match.
+/// The Ember mark, drawn with Skia so the tray, the window, the exe icon and the panel match.
 public static class Icons
 {
     static SKColor C(uint rgb) => new((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
 
-    /// `glow` adds the soft halo; leave it off where the background is unknown (the exe icon).
-    public static SKBitmap Logo(int size, bool glow = false)
+    public static SKBitmap Logo(int size)
     {
         var bmp = new SKBitmap(size, size, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var c = new SKCanvas(bmp);
         c.Clear(SKColors.Transparent);
-        Draw(c, size, glow);
+        Draw(c, size);
         return bmp;
     }
 
-    /// An amber tile with an E whose middle arm throws off a spark. Up to 32 px every edge is snapped to whole
-    /// pixels so the tray icon stays crisp.
-    public static void Draw(SKCanvas c, float s, bool glow)
+    /// A flat orange tile with a white E whose middle arm ends in a dot. Up to 32 px every edge is snapped to
+    /// whole pixels so the tray icon stays crisp.
+    public static void Draw(SKCanvas c, float s)
     {
         bool small = s <= 32;
         float P(float f) => small ? MathF.Round(f * s) : f * s;
-        if (glow)
-        {
-            using var halo = new SKPaint { IsAntialias = true, Color = C(0xFF7A3D).WithAlpha(70), MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, s * .08f) };
-            c.DrawRoundRect(new SKRect(s * .06f, s * .1f, s * .94f, s * .98f), s * .24f, s * .24f, halo);
-        }
-        using var tile = new SKPaint { IsAntialias = true, Shader = SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(s, s), new[] { C(0xFFC53D), C(0xFF6A3D) }, (float[]?)null, SKShaderTileMode.Clamp) };
-        c.DrawRoundRect(new SKRect(0, 0, s, s), s * .24f, s * .24f, tile);
-        using var ink = new SKPaint { IsAntialias = !small, Color = C(0x1A1208) };
+        using var tile = new SKPaint { IsAntialias = true, Color = C(0xF2702F) };
+        c.DrawRoundRect(new SKRect(0, 0, s, s), s * .22f, s * .22f, tile);
+        using var ink = new SKPaint { IsAntialias = !small, Color = SKColors.White };
         void Bar(float x0, float y0, float x1, float y1)
         {
             var r = new SKRect(P(x0), P(y0), P(x1), P(y1));
@@ -608,26 +602,24 @@ public static class Icons
         const int w = TuringLcd.Width, h = TuringLcd.Height;
         var bmp = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var c = new SKCanvas(bmp);
-        c.Clear(C(0x0D0C0B));
-        using (var warm = new SKPaint { IsAntialias = true, Shader = SKShader.CreateRadialGradient(new SKPoint(w / 2f, 96), 250,
-            new[] { C(0xFF5A1F).WithAlpha(40), C(0xFF5A1F).WithAlpha(0) }, (float[]?)null, SKShaderTileMode.Clamp) })
-            c.DrawRect(0, 0, w, h, warm);
+        c.Clear(C(0x1C1C1C));
         c.Save();
-        c.Translate(w / 2f - 46, 44);
-        Draw(c, 92, true);
+        c.Translate(w / 2f - 40, 58);
+        Draw(c, 80);
         c.Restore();
-        using var bold = SKTypeface.FromFamilyName("Bahnschrift", new SKFontStyle(600, 5, SKFontStyleSlant.Upright)) ?? SKTypeface.Default;
-        using var regular = SKTypeface.FromFamilyName("Bahnschrift", SKFontStyle.Normal) ?? SKTypeface.Default;
+        using var bold = SKTypeface.FromFamilyName("Segoe UI Variable Display", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+            ?? SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold) ?? SKTypeface.Default;
+        using var regular = SKTypeface.FromFamilyName("Segoe UI Variable Text", SKFontStyle.Normal) ?? SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Normal) ?? SKTypeface.Default;
         void Text(string text, SKTypeface tf, float size, float y, uint color)
         {
             using var f = new SKFont(tf, size) { Edging = SKFontEdging.SubpixelAntialias };
             using var p = new SKPaint { IsAntialias = true, Color = C(color) };
             c.DrawText(text, (w - f.MeasureText(text)) / 2, y, f, p);
         }
-        Text("ember", bold, 48, 196, 0xEEE8E2);
-        Text(L.F("version {0}", App.Version), regular, 14, 222, 0xA69D94);
-        Text("github.com/cybvlsky/Ember", regular, 13, 284, 0x8A8178);
-        Text(L.T("made by cybvlsky"), regular, 13, 302, 0x6A625B);
+        Text("Ember", bold, 36, 190, 0xFFFFFF);
+        Text(L.F("version {0}", App.Version), regular, 14, 214, 0xC5C5C5);
+        Text("github.com/cybvlsky/Ember", regular, 13, 280, 0x9A9A9A);
+        Text(L.T("made by cybvlsky"), regular, 13, 299, 0x7A7A7A);
         return bmp;
     }
 

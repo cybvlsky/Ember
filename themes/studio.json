@@ -1,0 +1,48 @@
+{
+  "name": "Studio",
+  "description": "Flat and quiet: grey cards, one orange accent, no glow.",
+  "font": "Segoe UI Variable Display",
+  "bg": "#1C1C1C",
+  "palette": {
+    "card": "#2B2B2B", "text": "#FFFFFF", "sub": "#C5C5C5", "dim": "#8A8A8A", "track": "#3D3D3D",
+    "a1": "#FFA066", "warn": "#FFC857", "crit": "#FF6B6B"
+  },
+  "widgets": [
+    { "type": "rect", "name": "CPU card", "x": 8, "y": 8, "w": 228, "h": 152, "radius": 8, "color": "card" },
+    { "type": "rect", "name": "GPU card", "x": 244, "y": 8, "w": 228, "h": 152, "radius": 8, "color": "card" },
+    { "type": "rect", "name": "Bottom card", "x": 8, "y": 168, "w": 464, "h": 144, "radius": 8, "color": "card" },
+
+    { "type": "text", "name": "CPU", "x": 22, "y": 20, "text": "CPU", "size": 13, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "CPU name", "x": 92, "y": 21, "w": 130, "align": "right", "text": "{cpu.name}", "size": 11, "color": "dim" },
+    { "type": "gauge", "name": "CPU load ring", "x": 22, "y": 52, "w": 92, "h": 92, "sensor": "cpu.load", "thickness": 7, "color": "a1", "track": "track", "mode": "flat" },
+    { "type": "text", "name": "CPU load", "x": 68, "y": 84, "align": "center", "text": "{cpu.load:0}%", "size": 20, "weight": 600 },
+    { "type": "text", "name": "CPU temp", "x": 222, "y": 50, "align": "right", "text": "{cpu.temp:0}°", "size": 44, "weight": 600, "sensor": "cpu.temp", "warn": 80, "crit": 90 },
+    { "type": "text", "name": "CPU clock", "x": 222, "y": 108, "align": "right", "text": "{cpu.clock:ghz} GHz", "size": 13, "color": "sub" },
+    { "type": "text", "name": "CPU power", "x": 222, "y": 127, "align": "right", "text": "{cpu.power:0} W", "size": 13, "color": "sub" },
+
+    { "type": "text", "name": "GPU", "x": 258, "y": 20, "text": "GPU", "size": 13, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "GPU name", "x": 328, "y": 21, "w": 130, "align": "right", "text": "{gpu.name}", "size": 11, "color": "dim" },
+    { "type": "gauge", "name": "GPU load ring", "x": 258, "y": 52, "w": 92, "h": 92, "sensor": "gpu.load", "thickness": 7, "color": "a1", "track": "track", "mode": "flat" },
+    { "type": "text", "name": "GPU load", "x": 304, "y": 84, "align": "center", "text": "{gpu.load:0}%", "size": 20, "weight": 600 },
+    { "type": "text", "name": "GPU temp", "x": 458, "y": 50, "align": "right", "text": "{gpu.temp:0}°", "size": 44, "weight": 600, "sensor": "gpu.temp", "warn": 78, "crit": 86 },
+    { "type": "text", "name": "GPU power", "x": 458, "y": 108, "align": "right", "text": "{gpu.power:0} W", "size": 13, "color": "sub" },
+    { "type": "text", "name": "VRAM", "x": 458, "y": 127, "align": "right", "text": "{gpu.vram.used:0.0} GB", "size": 13, "color": "sub" },
+
+    { "type": "text", "name": "RAM", "x": 22, "y": 182, "text": "RAM", "size": 12, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "RAM value", "x": 196, "y": 182, "align": "right", "text": "{ram.used:0.0} / {ram.total:0} GB", "size": 12 },
+    { "type": "bar", "name": "RAM bar", "x": 22, "y": 202, "w": 174, "h": 4, "radius": 2, "sensor": "ram.load", "color": "a1", "track": "track" },
+    { "type": "text", "name": "Disk", "x": 22, "y": 222, "text": "Disk C:", "size": 12, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "Disk value", "x": 196, "y": 222, "align": "right", "text": "{disk.free:0} GB free", "size": 12 },
+    { "type": "bar", "name": "Disk bar", "x": 22, "y": 242, "w": 174, "h": 4, "radius": 2, "sensor": "disk.used", "color": "a1", "track": "track" },
+    { "type": "text", "name": "Uptime label", "x": 22, "y": 270, "text": "Uptime", "size": 12, "weight": 600, "color": "sub" },
+    { "type": "text", "name": "Uptime", "x": 196, "y": 270, "align": "right", "text": "{sys.uptime}", "size": 12 },
+
+    { "type": "graph", "name": "Network graph", "x": 216, "y": 184, "w": 104, "h": 70, "sensor": "net.down", "points": 60, "thickness": 1.5, "color": "a1", "mode": "sweep" },
+    { "type": "text", "name": "Download", "x": 216, "y": 266, "text": "↓ {net.down:rate}", "size": 12 },
+    { "type": "text", "name": "Upload", "x": 216, "y": 284, "text": "↑ {net.up:rate}", "size": 12, "color": "sub" },
+
+    { "type": "text", "name": "Clock", "x": 458, "y": 180, "align": "right", "text": "{time:HH:mm}", "size": 44, "weight": 600 },
+    { "type": "text", "name": "Day", "x": 458, "y": 240, "align": "right", "text": "{date:dddd}", "size": 13, "color": "sub" },
+    { "type": "text", "name": "Date", "x": 458, "y": 259, "align": "right", "text": "{date:d MMMM}", "size": 13, "color": "dim" }
+  ]
+}

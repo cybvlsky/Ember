@@ -108,8 +108,8 @@ public static class Themes
             }
             catch (Exception e) { Log.Error($"theme {res}", e); }
         }
-        // Built-in order: whatever "order" the file names give, but the signature theme first.
-        list.Sort((a, b) => a.Id == "ember" ? -1 : b.Id == "ember" ? 1 : string.CompareOrdinal(a.Id, b.Id));
+        // Built-in order: alphabetical, but the default theme first.
+        list.Sort((a, b) => a.Id == "studio" ? -1 : b.Id == "studio" ? 1 : string.CompareOrdinal(a.Id, b.Id));
         // Screenshots for the README show only what ships.
         if (Directory.Exists(UserDir) && !App.Shots)
             foreach (var f in Directory.GetFiles(UserDir, "*.json").OrderBy(f => f))

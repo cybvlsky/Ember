@@ -30,9 +30,9 @@ public partial class MainWindow
     readonly DispatcherTimer liveTimer = new() { Interval = TimeSpan.FromMilliseconds(140) };
     CheckBox? liveBox;
 
-    readonly Shapes.Rectangle selRect = new() { Stroke = Br("#FF9A3D"), StrokeThickness = 1, Visibility = Visibility.Collapsed };
+    readonly Shapes.Rectangle selRect = new() { Stroke = Br("#FFA066"), StrokeThickness = 1, Visibility = Visibility.Collapsed };
     readonly Shapes.Rectangle hoverRect = new() { Stroke = Br("#80FFFFFF"), StrokeThickness = 0.8, StrokeDashArray = new DoubleCollection { 3, 3 }, Visibility = Visibility.Collapsed };
-    readonly Shapes.Rectangle[] handles = Enumerable.Range(0, 8).Select(_ => new Shapes.Rectangle { Width = 6, Height = 6, Fill = Br("#FFFFFF"), Stroke = Br("#FF9A3D"), StrokeThickness = 1, Visibility = Visibility.Collapsed }).ToArray();
+    readonly Shapes.Rectangle[] handles = Enumerable.Range(0, 8).Select(_ => new Shapes.Rectangle { Width = 6, Height = 6, Fill = Br("#FFFFFF"), Stroke = Br("#FFA066"), StrokeThickness = 1, Visibility = Visibility.Collapsed }).ToArray();
     readonly Shapes.Line guideV = new() { Stroke = Br("#FF3DAE"), StrokeThickness = 0.8, Y1 = -20, Y2 = H + 20, Visibility = Visibility.Collapsed };
     readonly Shapes.Line guideH = new() { Stroke = Br("#FF3DAE"), StrokeThickness = 0.8, X1 = -20, X2 = W + 20, Visibility = Visibility.Collapsed };
     readonly TextBlock sizeText = new() { FontSize = 8, Foreground = Br("#1A1208"), FontWeight = FontWeights.SemiBold };
@@ -68,7 +68,7 @@ public partial class MainWindow
 
     static readonly (string Name, string A1, string A2, string A3)[] Presets =
     [
-        ("Amber", "#FFC53D", "#FF6A3D", "#FF9A3D"), ("Aurora", "#4FE3D6", "#7B6CFF", "#D47CFF"), ("Neon", "#00E5FF", "#FF2E97", "#F9F871"),
+        ("Amber", "#FFC53D", "#FF6A3D", "#FFA066"), ("Aurora", "#4FE3D6", "#7B6CFF", "#D47CFF"), ("Neon", "#00E5FF", "#FF2E97", "#F9F871"),
         ("Ice", "#7DD3FC", "#A78BFA", "#E0F2FE"), ("Forest", "#A3E635", "#22C55E", "#FACC15"), ("Rose", "#FDA4AF", "#F472B6", "#C084FC"),
         ("Blood", "#FF6B6B", "#C81D25", "#FFB4A2"), ("Ocean", "#38BDF8", "#2563EB", "#22D3EE"),
     ];
@@ -141,8 +141,8 @@ public partial class MainWindow
             Name = T("My theme"), Font = "Bahnschrift", Bg = "#0D0C0B",
             Palette = new Dictionary<string, string>
             {
-                ["card"] = "#1A1816", ["line"] = "#2E2A27", ["text"] = "#E8ECF2", ["sub"] = "#8A94A6", ["dim"] = "#5E697C",
-                ["track"] = "#2A2623", ["a1"] = "#FFB347", ["a2"] = "#FF6A1F", ["a3"] = "#FF8A3D", ["warn"] = "#FFB020", ["crit"] = "#FF4D4D",
+                ["card"] = "#1A1816", ["line"] = "#2E2A27", ["text"] = "#FFFFFF", ["sub"] = "#C5C5C5", ["dim"] = "#9A9A9A",
+                ["track"] = "#2A2623", ["a1"] = "#FFB88A", ["a2"] = "#FF6A1F", ["a3"] = "#FF8A3D", ["warn"] = "#FFB020", ["crit"] = "#FF4D4D",
             },
             Widgets =
             {

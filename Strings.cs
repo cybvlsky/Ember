@@ -23,12 +23,9 @@ public static class L
     internal static readonly Dictionary<string, string> Polish = new()
     {
         ["Screen"] = "Ekran",
-        ["made by"] = "autor",
+        ["Flat and quiet: grey cards, one orange accent, no glow."] = "Płasko i spokojnie: szare karty, jeden pomarańczowy akcent, bez poświat.",
         ["Expand the menu"] = "Rozwiń menu",
         ["Collapse the menu"] = "Zwiń menu",
-        ["{0:0} fps on {1}"] = "{0:0} kl./s na {1}",
-        ["Frame rate"] = "Płynność",
-        ["USB link"] = "Łącze USB",
         ["Themes"] = "Motywy",
         ["Editor"] = "Edytor",
         ["Sensors"] = "Czujniki",
@@ -132,7 +129,7 @@ public static class L
         ["Interface and built-in themes"] = "Interfejs i wbudowane motywy",
         ["About"] = "O programie",
         ["Ember {0}"] = "Ember {0}",
-        ["For the Turing Smart Screen 3.5\" (revision A)."] = "Do ekranu Turing Smart Screen 3,5\" (rewizja A).",
+        ["Made by cybvlsky for the Turing Smart Screen 3.5\" (revision A)."] = "Autor: cybvlsky. Do ekranu Turing Smart Screen 3,5\" (rewizja A).",
         ["Log"] = "Log",
         ["Quit Ember"] = "Zakończ Ember",
         ["Intro when Ember starts"] = "Intro przy starcie",
