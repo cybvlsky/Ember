@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # The release job can publish, so its actions are pinned to commits; this keeps the pins current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
