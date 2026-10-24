@@ -13,6 +13,9 @@
   <a href="https://github.com/cybvlsky/Ember/releases/latest"><b>Download the installer</b></a>
 </p>
 
+> [!NOTE]
+> **Ember is vibe-coded.** The code was written by [Claude Opus 5.5](https://www.anthropic.com/claude-opus-5-5), Anthropic's AI model, working from my prompts. I directed the project, tested every build on a real screen and decided what went in. More in [How this was built](#how-this-was-built).
+
 <p align="center">
   <img src="docs/hero.webp" width="760" alt="The Ember theme on a Turing Smart Screen 3.5 inch: CPU and GPU load and temperature in rings, RAM, disk, a network graph and a clock">
 </p>
@@ -165,11 +168,11 @@ GitHub Actions builds every release from a tag. Add a `## x.y.z` section to [CHA
 
 ## How this was built
 
-Ember was vibe-coded with "Claude Opus 5.5" (https://www.anthropic.com/claude-opus-5-5) by Anthropic. Claude was heavily involved in writing, debugging and refining the code, while I directed the project, tested it on real hardware and worked on getting the performance and user experience right.
+Ember is vibe-coded. I described what I wanted and [Claude Opus 5.5](https://www.anthropic.com/claude-opus-5-5) by Anthropic wrote, debugged and refined the code. My part was directing the project, testing each build on real hardware, measuring performance and deciding how it should look and behave.
 
-I also used "REA (Reverse Engineer Anything)" (https://github.com/morluto/rea) to help investigate the original software and understand how the display communicates.
+To find out how the stock software talks to the display, I also used [REA (Reverse Engineer Anything)](https://github.com/morluto/rea).
 
-I'm not hiding the AI involvement. Ember is an open-source project built to solve a problem I had with the stock software. What matters to me is that it works, runs efficiently and gives other owners of these little screens a useful alternative.
+I'm not hiding the AI involvement. Ember is open source because the stock software wasn't good enough for me, and I wanted other owners of these little screens to have a better option. What matters to me is that it works, runs light and is useful.
 
 ## Credits
 
