@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.2 - 2026-10-24
 
 - Apps: Claude Code and Spotify get their own screens that take turns with the theme while they are in use (theme 15 s, each app 10 s, both adjustable). Each switch fades through black.
 - The Claude Code screen reads Claude Code's logs on the PC: cost and tokens in the current five-hour session and when it resets, the month at API prices compared with the plan price, and an estimate of the session limit once a limit has been hit. Nothing is sent anywhere and no credentials are read.

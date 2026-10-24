@@ -60,6 +60,6 @@ jobs:
           $log = Get-Content CHANGELOG.md -Raw
           $m = [regex]::Match($log, "(?ms)^## \[?$([regex]::Escape($env:VERSION))\]?[^\n]*\n(.*?)(?=^## |\z)")
           if (-not $m.Success) { throw "CHANGELOG.md has no section for $env:VERSION" }
-          $notes = $m.Groups[1].Value.Trim() + "`n`n**Install:** download ``Ember-Setup-$env:VERSION.exe`` below and run it. Windows 10 or 11, 64-bit."
+          $notes = $m.Groups[1].Value.Trim() + "`n`n**Install:** download ``Ember-Setup-$env:VERSION.exe`` below and run it. Windows 10 (version 2004 or newer) or 11, 64-bit."
           Set-Content notes.md $notes -Encoding utf8
           gh release create $env:GITHUB_REF_NAME "dist\Ember-Setup-$env:VERSION.exe" --title "Ember $env:VERSION" --notes-file notes.md
